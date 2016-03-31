@@ -35,6 +35,7 @@ if (!CC_EDITOR || !Editor.isCoreLevel) {
     require('./CCScene');
 
     require('./components');
+    require('./graphics');
 }
 
 require('./base-ui/CCWidgetManager');
