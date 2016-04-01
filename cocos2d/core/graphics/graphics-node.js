@@ -1,9 +1,10 @@
 var Shader      = require('./shader');
-var Triangulate = require('./triangulate');
 var Winding     = require('./types').Winding;
 var LineCap     = require('./types').LineCap;
 var LineJoin    = require('./types').LineJoin;
 var PointFlags  = require('./types').PointFlags;
+
+var Earcut = require('./earcut');
 
 var CanvasRenderCmd = require('./canvas-cmd');
 var WebGLRenderCmd  = require('./webgl-cmd');
@@ -354,9 +355,7 @@ Js.mixin(_p, {
     },
 
     close: function close() {
-        var paths = this._paths;
-        var p = paths[this._pathLength - 1];
-        p.closed = true;
+        this._lastPath().closed = true;
     },
 
     stroke: function stroke() {
@@ -623,7 +622,12 @@ Js.mixin(_p, {
                 var dx = dPos.x;
                 var dy = dPos.y;
 
-                if (lineCap === LineCap.BUTT) this._buttCap(p0, dx, dy, w, 0);else if (lineCap === LineCap.SQUARE) this._buttCap(p0, dx, dy, w, w);else if (lineCap === LineCap.ROUND) this._roundCapStart(p0, dx, dy, w, ncap);
+                if (lineCap === LineCap.BUTT) 
+                    this._buttCap(p0, dx, dy, w, 0);
+                else if (lineCap === LineCap.SQUARE) 
+                    this._buttCap(p0, dx, dy, w, w);
+                else if (lineCap === LineCap.ROUND) 
+                    this._roundCapStart(p0, dx, dy, w, ncap);
             }
 
             for (var j = s; j < e; ++j) {
@@ -655,7 +659,12 @@ Js.mixin(_p, {
                 var dx = dPos.x;
                 var dy = dPos.y;
 
-                if (lineCap === LineCap.BUTT) this._buttCap(p1, dx, dy, w, 0);else if (lineCap === LineCap.BUTT || lineCap === LineCap.SQUARE) this._buttCap(p1, dx, dy, w, w);else if (lineCap === LineCap.ROUND) this._roundCapEnd(p1, dx, dy, w, ncap);
+                if (lineCap === LineCap.BUTT) 
+                    this._buttCap(p1, dx, dy, w, 0);
+                else if (lineCap === LineCap.BUTT || lineCap === LineCap.SQUARE) 
+                    this._buttCap(p1, dx, dy, w, w);
+                else if (lineCap === LineCap.ROUND) 
+                    this._roundCapEnd(p1, dx, dy, w, ncap);
             }
 
             path.nstroke = this._vertsOffset - path.strokeOffset;
@@ -698,12 +707,8 @@ Js.mixin(_p, {
                 vset(pts[j].x, pts[j].y, 0.5, 1);
             }
 
-            var contours = [];
-            for (var i2 = offset, l2 = this._vertsOffset; i2 < l2; i2++) {
-                contours.push(this._vget(i2));
-            }
-
-            var newIndices = Triangulate.process(contours);
+            var data = this._vertsBuffer.slice(offset * 2, this._vertsOffset * 2);
+            var newIndices = Earcut(data, null, 2);
 
             if (!newIndices) {
                 continue;
