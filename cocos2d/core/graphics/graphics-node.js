@@ -18,7 +18,7 @@ var INIT_VERTS_SIZE = 32;
 var KAPPA90 = 0.5522847493;
 
 var VERTS_FLOAT_LENGTH = 2;
-var VERTS_BYTE_LENGTH = 8;
+var VERTS_BYTE_LENGTH  = 8;
 
 var min     = Math.min;
 var max     = Math.max;
@@ -94,7 +94,7 @@ Path.prototype.reset = function () {
 // GraphicsNode
 var GraphicsNode = _ccsg.Node.extend({
     // constructor
-    ctor: function ctor() {
+    ctor: function () {
         var gl = cc._renderContext;
 
         this._super();
@@ -129,7 +129,7 @@ var GraphicsNode = _ccsg.Node.extend({
     },
 
     // clear
-    clear: function clear(clean) {
+    clear: function (clean) {
         this._vertsOffset = 0;
         this._indicesOffset = 0;
 
@@ -147,14 +147,14 @@ var GraphicsNode = _ccsg.Node.extend({
     },
 
     // extends functions
-    _createRenderCmd: function _createRenderCmd() {
+    _createRenderCmd: function () {
         if (cc._renderType === cc.game.RENDER_TYPE_CANVAS)
             return new CanvasRenderCmd(this);
         else
             return new WebGLRenderCmd(this);
     },
 
-    _render: function _render() {
+    _render: function () {
         var vertsBuffer = this._vertsBuffer;
         if (!vertsBuffer || vertsBuffer.length === 0) return;
 
@@ -216,7 +216,7 @@ Js.mixin(_p, {
 
     miterLimit: 10,
 
-    moveTo: function moveTo(x, y) {
+    moveTo: function (x, y) {
         if (this._updatePathOffset) {
             this._pathOffset = this._pathLength;
             this._updatePathOffset = false;
@@ -229,7 +229,7 @@ Js.mixin(_p, {
         this._commandy = y;
     },
 
-    lineTo: function lineTo(x, y) {
+    lineTo: function (x, y) {
         var p = this._lastPath();
         this._addPoint(p, x, y, PointFlags.PT_CORNER);
 
@@ -237,7 +237,7 @@ Js.mixin(_p, {
         this._commandy = y;
     },
 
-    bezierCurveTo: function bezierCurveTo(c1x, c1y, c2x, c2y, x, y) {
+    bezierCurveTo: function (c1x, c1y, c2x, c2y, x, y) {
         var path = this._lastPath();
         var last = path.points[path.points.length - 1];
 
@@ -252,14 +252,14 @@ Js.mixin(_p, {
         this._commandy = y;
     },
 
-    quadraticCurveTo: function quadraticCurveTo(cx, cy, x, y) {
+    quadraticCurveTo: function (cx, cy, x, y) {
         var x0 = this._commandx;
         var y0 = this._commandy;
         this.bezierCurveTo(x0 + 2.0 / 3.0 * (cx - x0), y0 + 2.0 / 3.0 * (cy - y0), x + 2.0 / 3.0 * (cx - x), y + 2.0 / 3.0 * (cy - y), x, y);
     },
 
     //
-    arc: function arc(cx, cy, r, a0, a1, dir) {
+    arc: function (cx, cy, r, a0, a1, dir) {
         var a = 0, da = 0, hda = 0, kappa = 0;
         var dx = 0, dy = 0, x = 0, y = 0, tanx = 0, tany = 0;
         var px = 0, py = 0, ptanx = 0, ptany = 0;
@@ -311,7 +311,7 @@ Js.mixin(_p, {
         }
     },
 
-    ellipse: function ellipse(cx, cy, rx, ry) {
+    ellipse: function (cx, cy, rx, ry) {
         this.moveTo(cx - rx, cy);
         this.bezierCurveTo(cx - rx, cy + ry * KAPPA90, cx - rx * KAPPA90, cy + ry, cx, cy + ry);
         this.bezierCurveTo(cx + rx * KAPPA90, cy + ry, cx + rx, cy + ry * KAPPA90, cx + rx, cy);
@@ -321,11 +321,11 @@ Js.mixin(_p, {
         this.close();
     },
 
-    circle: function circle(cx, cy, r) {
+    circle: function (cx, cy, r) {
         this.ellipse(cx, cy, r, r);
     },
 
-    rect: function rect(x, y, w, h) {
+    rect: function (x, y, w, h) {
         this.moveTo(x, y);
         this.lineTo(x, y + h);
         this.lineTo(x + w, y + h);
@@ -333,7 +333,7 @@ Js.mixin(_p, {
         this.close();
     },
 
-    roundRect: function roundRect(x, y, w, h, r) {
+    roundRect: function (x, y, w, h, r) {
         if (r < 0.1) {
             this.rect(x, y, w, h);
             return;
@@ -354,11 +354,11 @@ Js.mixin(_p, {
         }
     },
 
-    close: function close() {
+    close: function () {
         this._lastPath().closed = true;
     },
 
-    stroke: function stroke() {
+    stroke: function () {
         this._flattenPaths();
 
         this._expandStroke();
@@ -367,7 +367,7 @@ Js.mixin(_p, {
         this._updatePathOffset = true;
     },
 
-    fill: function fill() {
+    fill: function () {
         this._flattenPaths();
 
         this._expandFill();
@@ -387,19 +387,19 @@ Js.mixin(_p, {
     _tessTol: 0.25, // Tessellation Tolerance
     _distTol: 0.01,
 
-    setStrokeColor: function setStrokeColor(c) {
+    setStrokeColor: function (c) {
         this._strokeColor = c;
     },
 
-    getStrokeColor: function getStrokeColor() {
+    getStrokeColor: function () {
         return this._strokeColor;
     },
 
-    setFillColor: function setFillColor(c) {
+    setFillColor: function (c) {
         this._fillColor = c;
     },
 
-    getFillColor: function getFillColor() {
+    getFillColor: function () {
         return this._fillColor;
     }
 });
@@ -425,7 +425,7 @@ Js.mixin(_p, {
         return this._paths[this._pathLength - 1];
     },
 
-    _addPath: function _addPath() {
+    _addPath: function () {
         var offset = this._pathLength;
         var path = this._paths[offset];
 
@@ -442,7 +442,7 @@ Js.mixin(_p, {
         return path;
     },
 
-    _addPoint: function _addPoint(path, x, y, flags) {
+    _addPoint: function (path, x, y, flags) {
         if (!path) return;
 
         var pt;
@@ -474,7 +474,7 @@ Js.mixin(_p, {
         pathPoints.push(pt);
     },
 
-    _flattenPaths: function _flattenPaths() {
+    _flattenPaths: function () {
         var paths = this._paths;
         for (var i = this._pathOffset, l = this._pathLength; i < l; i++) {
             var path = paths[i];
@@ -503,7 +503,7 @@ Js.mixin(_p, {
         }
     },
 
-    _allocVerts: function _allocVerts(cverts) {
+    _allocVerts: function (cverts) {
         var dnverts = this._vertsOffset + cverts;
         var buffer = this._vertsBuffer;
         var nverts = buffer ? buffer.length / VERTS_FLOAT_LENGTH : 0;
@@ -529,7 +529,7 @@ Js.mixin(_p, {
         }
     },
 
-    _allocIndices: function _allocIndices(cindices) {
+    _allocIndices: function (cindices) {
         var indices = this._indicesBuffer;
         var dnindices = this._indicesOffset + cindices;
         var nindices = indices ? indices.length : 0;
@@ -554,7 +554,7 @@ Js.mixin(_p, {
         }
     },
 
-    _expandStroke: function _expandStroke() {
+    _expandStroke: function () {
         var w = this.lineWidth * 0.5,
             lineCap = this.lineCap,
             lineJoin = this.lineJoin,
@@ -585,7 +585,6 @@ Js.mixin(_p, {
         }
 
         this._allocVerts(cverts);
-        var vset = this._vset.bind(this);
 
         for (var i = this._pathOffset, l = this._pathLength; i < l; i++) {
             var path = paths[i];
@@ -638,8 +637,8 @@ Js.mixin(_p, {
                         this._bevelJoin(p0, p1, w, w);
                     }
                 } else {
-                    vset(p1.x + p1.dmx * w, p1.y + p1.dmy * w);
-                    vset(p1.x - p1.dmx * w, p1.y - p1.dmy * w);
+                    this._vset(p1.x + p1.dmx * w, p1.y + p1.dmy * w);
+                    this._vset(p1.x - p1.dmx * w, p1.y - p1.dmy * w);
                 }
                 p0 = p1;
                 p1 = pts[j + 1];
@@ -649,8 +648,8 @@ Js.mixin(_p, {
                 var v0 = this._vget(offset);
                 var v1 = this._vget(offset + 1);
                 // Loop it
-                vset(v0.x, v0.y);
-                vset(v1.x, v1.y);
+                this._vset(v0.x, v0.y);
+                this._vset(v1.x, v1.y);
             } else {
                 // Add cap
                 var dPos = p1.sub(p0);
@@ -671,7 +670,7 @@ Js.mixin(_p, {
         }
     },
 
-    _expandFill: function _expandFill() {
+    _expandFill: function () {
         // this._calculateJoins(0, LineJoin.MITER, 2.4);
 
         var paths = this._paths;
@@ -686,8 +685,6 @@ Js.mixin(_p, {
         }
 
         this._allocVerts(cverts);
-
-        var vset = this._vset.bind(this);
 
         for (var i = this._pathOffset, l = this._pathLength; i < l; i++) {
             var path = paths[i];
@@ -704,7 +701,7 @@ Js.mixin(_p, {
             var offset = this._vertsOffset;
 
             for (var j = 0; j < pointsLength; ++j) {
-                vset(pts[j].x, pts[j].y, 0.5, 1);
+                this._vset(pts[j].x, pts[j].y, 0.5, 1);
             }
 
             var data = this._vertsBuffer.slice(offset * 2, this._vertsOffset * 2);
@@ -729,12 +726,12 @@ Js.mixin(_p, {
         }
     },
 
-    _curveDivs: function _curveDivs(r, arc, tol) {
+    _curveDivs: function (r, arc, tol) {
         var da = acos(r / (r + tol)) * 2.0;
         return max(2, ceil(arc / da));
     },
 
-    _calculateJoins: function _calculateJoins(w, lineJoin, miterLimit) {
+    _calculateJoins: function (w, lineJoin, miterLimit) {
         var iw = 0.0;
 
         if (w > 0.0) {
@@ -812,7 +809,7 @@ Js.mixin(_p, {
         }
     },
 
-    _vset: function _vset(x, y) {
+    _vset: function (x, y) {
         var offset = this._vertsOffset * VERTS_FLOAT_LENGTH;
         var buffer = this._vertsBuffer;
 
@@ -822,7 +819,7 @@ Js.mixin(_p, {
         this._vertsOffset++;
     },
 
-    _vget: function _vget(index) {
+    _vget: function (index) {
         var buffer = this._vertsBuffer;
         var offset = index * VERTS_FLOAT_LENGTH;
         return {
@@ -832,7 +829,7 @@ Js.mixin(_p, {
     },
 
     //
-    _chooseBevel: function _chooseBevel(bevel, p0, p1, w, x0, y0, x1, y1) {
+    _chooseBevel: function (bevel, p0, p1, w, x0, y0, x1, y1) {
         var x = p1.x;
         var y = p1.y;
 
@@ -851,59 +848,55 @@ Js.mixin(_p, {
         return [x0, y0, x1, y1];
     },
 
-    _buttCap: function _buttCap(p, dx, dy, w, d) {
+    _buttCap: function (p, dx, dy, w, d) {
         var px = p.x - dx * d;
         var py = p.y - dy * d;
         var dlx = dy;
         var dly = -dx;
-        var vset = this._vset.bind(this);
 
-        vset(px + dlx * w, py + dly * w);
-        vset(px - dlx * w, py - dly * w);
+        this._vset(px + dlx * w, py + dly * w);
+        this._vset(px - dlx * w, py - dly * w);
     },
 
-    _roundCapStart: function _roundCapStart(p, dx, dy, w, ncap) {
+    _roundCapStart: function (p, dx, dy, w, ncap) {
         var px = p.x;
         var py = p.y;
         var dlx = dy;
         var dly = -dx;
-        var vset = this._vset.bind(this);
 
         for (var i = 0; i < ncap; i++) {
             var a = i / (ncap - 1) * PI;
             var ax = cos(a) * w,
                 ay = sin(a) * w;
-            vset(px - dlx * ax - dx * ay, py - dly * ax - dy * ay);
-            vset(px, py);
+            this._vset(px - dlx * ax - dx * ay, py - dly * ax - dy * ay);
+            this._vset(px, py);
         }
-        vset(px + dlx * w, py + dly * w);
-        vset(px - dlx * w, py - dly * w);
+        this._vset(px + dlx * w, py + dly * w);
+        this._vset(px - dlx * w, py - dly * w);
     },
 
-    _roundCapEnd: function _roundCapEnd(p, dx, dy, w, ncap) {
+    _roundCapEnd: function (p, dx, dy, w, ncap) {
         var px = p.x;
         var py = p.y;
         var dlx = dy;
         var dly = -dx;
-        var vset = this._vset.bind(this);
 
-        vset(px + dlx * w, py + dly * w);
-        vset(px - dlx * w, py - dly * w);
+        this._vset(px + dlx * w, py + dly * w);
+        this._vset(px - dlx * w, py - dly * w);
         for (var i = 0; i < ncap; i++) {
             var a = i / (ncap - 1) * PI;
             var ax = cos(a) * w,
                 ay = sin(a) * w;
-            vset(px, py);
-            vset(px - dlx * ax + dx * ay, py - dly * ax + dy * ay);
+            this._vset(px, py);
+            this._vset(px - dlx * ax + dx * ay, py - dly * ax + dy * ay);
         }
     },
 
-    _roundJoin: function _roundJoin(p0, p1, lw, rw, ncap) {
+    _roundJoin: function (p0, p1, lw, rw, ncap) {
         var dlx0 = p0.dy;
         var dly0 = -p0.dx;
         var dlx1 = p1.dy;
         var dly1 = -p1.dx;
-        var vset = this._vset.bind(this);
 
         var p1x = p1.x;
         var p1y = p1.y;
@@ -919,8 +912,8 @@ Js.mixin(_p, {
             var a1 = atan2(-dly1, -dlx1);
             if (a1 > a0) a1 -= PI * 2;
 
-            vset(lx0, ly0);
-            vset(p1x - dlx0 * rw, p1.y - dly0 * rw);
+            this._vset(lx0, ly0);
+            this._vset(p1x - dlx0 * rw, p1.y - dly0 * rw);
 
             var n = clamp(ceil((a0 - a1) / PI) * ncap, 2, ncap);
             for (var i = 0; i < n; i++) {
@@ -928,12 +921,12 @@ Js.mixin(_p, {
                 var a = a0 + u * (a1 - a0);
                 var rx = p1x + cos(a) * rw;
                 var ry = p1y + sin(a) * rw;
-                vset(p1x, p1y);
-                vset(rx, ry);
+                this._vset(p1x, p1y);
+                this._vset(rx, ry);
             }
 
-            vset(lx1, ly1);
-            vset(p1x - dlx1 * rw, p1y - dly1 * rw);
+            this._vset(lx1, ly1);
+            this._vset(p1x - dlx1 * rw, p1y - dly1 * rw);
         } else {
             var out = this._chooseBevel(p1.flags & PointFlags.PT_INNERBEVEL, p0, p1, -rw);
             var rx0 = out[0];
@@ -945,8 +938,8 @@ Js.mixin(_p, {
             var a1 = atan2(dly1, dlx1);
             if (a1 < a0) a1 += PI * 2;
 
-            vset(p1x + dlx0 * rw, p1y + dly0 * rw);
-            vset(rx0, ry0);
+            this._vset(p1x + dlx0 * rw, p1y + dly0 * rw);
+            this._vset(rx0, ry0);
 
             var n = clamp(ceil((a1 - a0) / PI) * ncap, 2, ncap);
             for (var i = 0; i < n; i++) {
@@ -954,23 +947,22 @@ Js.mixin(_p, {
                 var a = a0 + u * (a1 - a0);
                 var lx = p1x + cos(a) * lw;
                 var ly = p1y + sin(a) * lw;
-                vset(lx, ly);
-                vset(p1x, p1y);
+                this._vset(lx, ly);
+                this._vset(p1x, p1y);
             }
 
-            vset(p1x + dlx1 * rw, p1y + dly1 * rw);
-            vset(rx1, ry1);
+            this._vset(p1x + dlx1 * rw, p1y + dly1 * rw);
+            this._vset(rx1, ry1);
         }
     },
 
-    _bevelJoin: function _bevelJoin(p0, p1, lw, rw) {
+    _bevelJoin: function (p0, p1, lw, rw) {
         var rx0, ry0, rx1, ry1;
         var lx0, ly0, lx1, ly1;
         var dlx0 = p0.dy;
         var dly0 = -p0.dx;
         var dlx1 = p1.dy;
         var dly1 = -p1.dx;
-        var vset = this._vset.bind(this);
 
         if (p1.flags & PointFlags.PT_LEFT) {
             var out = this._chooseBevel(p1.flags & PointFlags.PT_INNERBEVEL, p0, p1, lw, lx0, ly0, lx1, ly1);
@@ -979,31 +971,31 @@ Js.mixin(_p, {
             lx1 = out[2];
             ly1 = out[3];
 
-            vset(lx0, ly0);
-            vset(p1.x - dlx0 * rw, p1.y - dly0 * rw);
+            this._vset(lx0, ly0);
+            this._vset(p1.x - dlx0 * rw, p1.y - dly0 * rw);
 
             if (p1.flags & PointFlags.PT_BEVEL) {
-                vset(lx0, ly0);
-                vset(p1.x - dlx0 * rw, p1.y - dly0 * rw);
+                this._vset(lx0, ly0);
+                this._vset(p1.x - dlx0 * rw, p1.y - dly0 * rw);
 
-                vset(lx1, ly1);
-                vset(p1.x - dlx1 * rw, p1.y - dly1 * rw);
+                this._vset(lx1, ly1);
+                this._vset(p1.x - dlx1 * rw, p1.y - dly1 * rw);
             } else {
                 rx0 = p1.x - p1.dmx * rw;
                 ry0 = p1.y - p1.dmy * rw;
 
-                vset(p1.x, p1.y);
-                vset(p1.x - dlx0 * rw, p1.y - dly0 * rw);
+                this._vset(p1.x, p1.y);
+                this._vset(p1.x - dlx0 * rw, p1.y - dly0 * rw);
 
-                vset(rx0, ry0);
-                vset(rx0, ry0);
+                this._vset(rx0, ry0);
+                this._vset(rx0, ry0);
 
-                vset(p1.x, p1.y);
-                vset(p1.x - dlx1 * rw, p1.y - dly1 * rw);
+                this._vset(p1.x, p1.y);
+                this._vset(p1.x - dlx1 * rw, p1.y - dly1 * rw);
             }
 
-            vset(lx1, ly1);
-            vset(p1.x - dlx1 * rw, p1.y - dly1 * rw);
+            this._vset(lx1, ly1);
+            this._vset(p1.x - dlx1 * rw, p1.y - dly1 * rw);
         } else {
             var out = this._chooseBevel(p1.flags & PointFlags.PT_INNERBEVEL, p0, p1, -rw, rx0, ry0, rx1, ry1);
             rx0 = out[0];
@@ -1011,35 +1003,35 @@ Js.mixin(_p, {
             rx1 = out[2];
             ry1 = out[3];
 
-            vset(p1.x + dlx0 * lw, p1.y + dly0 * lw);
-            vset(rx0, ry0);
+            this._vset(p1.x + dlx0 * lw, p1.y + dly0 * lw);
+            this._vset(rx0, ry0);
 
             if (p1.flags & PointFlags.PT_BEVEL) {
-                vset(p1.x + dlx0 * lw, p1.y + dly0 * lw);
-                vset(rx0, ry0);
+                this._vset(p1.x + dlx0 * lw, p1.y + dly0 * lw);
+                this._vset(rx0, ry0);
 
-                vset(p1.x + dlx1 * lw, p1.y + dly1 * lw);
-                vset(rx1, ry1);
+                this._vset(p1.x + dlx1 * lw, p1.y + dly1 * lw);
+                this._vset(rx1, ry1);
             } else {
                 lx0 = p1.x + p1.dmx * lw;
                 ly0 = p1.y + p1.dmy * lw;
 
-                vset(p1.x + dlx0 * lw, p1.y + dly0 * lw);
-                vset(p1.x, p1.y);
+                this._vset(p1.x + dlx0 * lw, p1.y + dly0 * lw);
+                this._vset(p1.x, p1.y);
 
-                vset(lx0, ly0);
-                vset(lx0, ly0);
+                this._vset(lx0, ly0);
+                this._vset(lx0, ly0);
 
-                vset(p1.x + dlx1 * lw, p1.y + dly1 * lw);
-                vset(p1.x, p1.y);
+                this._vset(p1.x + dlx1 * lw, p1.y + dly1 * lw);
+                this._vset(p1.x, p1.y);
             }
 
-            vset(p1.x + dlx1 * lw, p1.y + dly1 * lw);
-            vset(rx1, ry1);
+            this._vset(p1.x + dlx1 * lw, p1.y + dly1 * lw);
+            this._vset(rx1, ry1);
         }
     },
 
-    _tesselateBezier: function _tesselateBezier(x1, y1, x2, y2, x3, y3, x4, y4, level, type) {
+    _tesselateBezier: function (x1, y1, x2, y2, x3, y3, x4, y4, level, type) {
         var x12, y12, x23, y23, x34, y34, x123, y123, x234, y234, x1234, y1234;
         var dx, dy, d2, d3;
 
