@@ -137,6 +137,8 @@ var GraphicsNode = _ccsg.Node.extend({
         this._pathOffset = 0;
         this._pointsOffset = 0;
 
+        this._curPath = null;
+
         if (clean) {
             this._paths.length = 0;
             this._points.length = 0;
@@ -222,23 +224,22 @@ Js.mixin(_p, {
             this._updatePathOffset = false;
         }
 
-        var p = this._addPath();
-        this._addPoint(p, x, y, PointFlags.PT_CORNER);
+        this._addPath();
+        this._addPoint(x, y, PointFlags.PT_CORNER);
 
         this._commandx = x;
         this._commandy = y;
     },
 
     lineTo: function (x, y) {
-        var p = this._lastPath();
-        this._addPoint(p, x, y, PointFlags.PT_CORNER);
+        this._addPoint(x, y, PointFlags.PT_CORNER);
 
         this._commandx = x;
         this._commandy = y;
     },
 
     bezierCurveTo: function (c1x, c1y, c2x, c2y, x, y) {
-        var path = this._lastPath();
+        var path = this._curPath;
         var last = path.points[path.points.length - 1];
 
         if (last.x === c1x && last.y === c1y && c2x === x && c2y === y) {
@@ -355,7 +356,7 @@ Js.mixin(_p, {
     },
 
     close: function () {
-        this._lastPath().closed = true;
+        this._curPath.closed = true;
     },
 
     stroke: function () {
@@ -421,10 +422,6 @@ Js.mixin(_p, {
     _commandx: 0,
     _commandy: 0,
 
-    _lastPath: function () {
-        return this._paths[this._pathLength - 1];
-    },
-
     _addPath: function () {
         var offset = this._pathLength;
         var path = this._paths[offset];
@@ -438,25 +435,18 @@ Js.mixin(_p, {
         }
 
         this._pathLength++;
+        this._curPath = path;
 
         return path;
     },
 
-    _addPoint: function (path, x, y, flags) {
+    _addPoint: function (x, y, flags) {
+        var path = this._curPath;
         if (!path) return;
 
         var pt;
         var points = this._points;
         var pathPoints = path.points;
-
-        var length = pathPoints.length;
-        if (length > 0) {
-            pt = pathPoints[length - 1];
-            if (pt.equals(v2(x, y))) {
-                pt.flags |= flags;
-                return;
-            }
-        }
 
         var offset = this._pointsOffset++;
         pt = points[offset];
@@ -465,7 +455,6 @@ Js.mixin(_p, {
             pt = new Point(x, y);
             points.push(pt);
         } else {
-            pt.reset();
             pt.x = x;
             pt.y = y;
         }
@@ -1052,8 +1041,7 @@ Js.mixin(_p, {
         d3 = abs((x3 - x4) * dy - (y3 - y4) * dx);
 
         if ((d2 + d3) * (d2 + d3) < this._tessTol * (dx * dx + dy * dy)) {
-            var path = this._lastPath();
-            this._addPoint(path, x4, y4, type | PointFlags.PT_ROUND);
+            this._addPoint(x4, y4, type | PointFlags.PT_ROUND);
             return;
         }
 
