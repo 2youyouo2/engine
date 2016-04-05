@@ -121,8 +121,8 @@ var Graphics = cc.Class({
         this._sgNode.quadraticCurveTo(cx, cy, x, y);
     },
 
-    arc: function (cx, cy, r, a0, a1, dir) {
-        this._sgNode.arc(cx, cy, r, a0, a1, dir);
+    arc: function (cx, cy, r, a0, a1, counterclockwise) {
+        this._sgNode.arc(cx, cy, r, a0, a1, counterclockwise);
     },
 
     ellipse: function (cx, cy, rx, ry) {
@@ -142,8 +142,7 @@ var Graphics = cc.Class({
     },
 
     fillRect: function (x, y, w, h) {
-        this._sgNode.rect(x, y, w, h);
-        this._sgNode.fill();
+        this._sgNode.fillRect(x, y, w, h);
     },
 
     clear: function () {

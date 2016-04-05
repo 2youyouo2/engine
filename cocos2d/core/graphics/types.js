@@ -14,11 +14,6 @@ var LineJoin = cc.Enum({
     MITER: 2
 });
 
-var Winding = cc.Enum({
-    CCW: 1,             // counterclockwise   // Winding for solid shapes
-    CW:  2,             // clockwise          // Winding for holes
-});
-
 var PointFlags =  cc.Enum({
     PT_CORNER: 0x01,
     PT_LEFT: 0x02,
@@ -30,6 +25,5 @@ var PointFlags =  cc.Enum({
 module.exports = {
     LineCap:    LineCap,
     LineJoin:   LineJoin,
-    Winding:    Winding,
     PointFlags: PointFlags
 };

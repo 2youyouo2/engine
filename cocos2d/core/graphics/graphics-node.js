@@ -1,5 +1,4 @@
 var Shader      = require('./shader');
-var Winding     = require('./types').Winding;
 var LineCap     = require('./types').LineCap;
 var LineJoin    = require('./types').LineJoin;
 var PointFlags  = require('./types').PointFlags;
@@ -63,10 +62,10 @@ function Path () {
     this.reset();
 }
 Path.prototype.reset = function () {
-    this.winding = Winding.CCW;
     this.closed = false;
     this.convex = false;
     this.nbevel = 0;
+    this.complex = true;
 
     this.strokeColor = null;
     this.fillColor = null;
@@ -76,8 +75,8 @@ Path.prototype.reset = function () {
     this.nstroke = 0;
 
     // fill
-    this.strokeOffset = 0;
-    this.nstroke = 0;
+    this.fillOffset = 0;
+    this.nfill = 0;
 
     // indices
     this.nIndices = 0;
@@ -186,20 +185,29 @@ var GraphicsNode = _ccsg.Node.extend({
         for (var i = 0, l = this._pathLength; i < l; i++) {
             var path = paths[i];
 
+            if (path.complex && path.nIndices) {
+                if (path.nIndices) {
+                    var color = path.fillColor;
+                    gl.uniform4f(colorLocation, color.r / 255, color.g / 255, color.b / 255, color.a / 255);
+                    gl.drawElements(gl.TRIANGLES, path.nIndices, gl.UNSIGNED_SHORT, path.indicesOffset * 2);
+
+                    cc.incrementGLDraws(path.nIndices);
+                }
+            }
+            else if (!path.complex && path.nfill) {
+                var color = path.fillColor;
+                gl.uniform4f(colorLocation, color.r / 255, color.g / 255, color.b / 255, color.a / 255);
+                gl.drawArrays(gl.TRIANGLE_FAN, path.fillOffset, path.nfill);
+
+                cc.incrementGLDraws(path.nfill);
+            }
+
             if (path.nstroke) {
                 var color = path.strokeColor;
                 gl.uniform4f(colorLocation, color.r / 255, color.g / 255, color.b / 255, color.a / 255);
                 gl.drawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.nstroke);
 
                 cc.incrementGLDraws(path.nstroke);
-            }
-
-            if (path.nIndices) {
-                var color = path.fillColor;
-                gl.uniform4f(colorLocation, color.r / 255, color.g / 255, color.b / 255, color.a / 255);
-                gl.drawElements(gl.TRIANGLES, path.nIndices, gl.UNSIGNED_SHORT, path.indicesOffset * 2);
-
-                cc.incrementGLDraws(path.nIndices);
             }
         }
 
@@ -260,17 +268,15 @@ Js.mixin(_p, {
     },
 
     //
-    arc: function (cx, cy, r, a0, a1, dir) {
+    arc: function (cx, cy, r, a0, a1, counterclockwise) {
         var a = 0, da = 0, hda = 0, kappa = 0;
         var dx = 0, dy = 0, x = 0, y = 0, tanx = 0, tany = 0;
         var px = 0, py = 0, ptanx = 0, ptany = 0;
         var i, ndivs;
 
-        dir = dir || Winding.CW;
-
         // Clamp angles
         da = a1 - a0;
-        if (dir === Winding.CW) {
+        if (!counterclockwise) {
             if (abs(da) >= PI * 2) {
                 da = PI * 2;
             } else {
@@ -289,7 +295,7 @@ Js.mixin(_p, {
         hda = da / ndivs / 2.0;
         kappa = abs(4.0 / 3.0 * (1 - cos(hda)) / sin(hda));
 
-        if (dir === Winding.CCW) kappa = -kappa;
+        if (counterclockwise) kappa = -kappa;
 
         for (i = 0; i <= ndivs; i++) {
             a = a0 + da * (i / ndivs);
@@ -310,6 +316,8 @@ Js.mixin(_p, {
             ptanx = tanx;
             ptany = tany;
         }
+
+        this._curPath.complex = false;
     },
 
     ellipse: function (cx, cy, rx, ry) {
@@ -320,6 +328,7 @@ Js.mixin(_p, {
         this.bezierCurveTo(cx - rx * KAPPA90, cy - ry, cx - rx, cy - ry * KAPPA90, cx - rx, cy);
 
         this.close();
+        this._curPath.complex = false;
     },
 
     circle: function (cx, cy, r) {
@@ -332,6 +341,7 @@ Js.mixin(_p, {
         this.lineTo(x + w, y + h);
         this.lineTo(x + w, y);
         this.close();
+        this._curPath.complex = false;
     },
 
     roundRect: function (x, y, w, h, r) {
@@ -352,7 +362,14 @@ Js.mixin(_p, {
             this.lineTo(x + rx, y);
             this.bezierCurveTo(x + rx * (1 - KAPPA90), y, x, y + ry * (1 - KAPPA90), x, y + ry);
             this.close();
+            this._curPath.complex = false;
         }
+    },
+
+    fillRect: function (x, y, w, h) {
+        this.rect(x, y, w, h);
+
+        this.fill();
     },
 
     close: function () {
@@ -369,11 +386,10 @@ Js.mixin(_p, {
     },
 
     fill: function () {
-        this._flattenPaths();
+        // this._flattenPaths();
 
         this._expandFill();
 
-        this._indicesDirty = true;
         this._vertsDirty = true;
         this._updatePathOffset = true;
         this._filling = false;
@@ -688,30 +704,38 @@ Js.mixin(_p, {
 
             // Calculate shape vertices.
             var offset = this._vertsOffset;
+            path.fillOffset = offset;
 
             for (var j = 0; j < pointsLength; ++j) {
                 this._vset(pts[j].x, pts[j].y, 0.5, 1);
             }
 
-            var data = this._vertsBuffer.slice(offset * 2, this._vertsOffset * 2);
-            var newIndices = Earcut(data, null, 2);
+            path.nfill = this._vertsOffset - offset;
 
-            if (!newIndices) {
-                continue;
+            if (path.complex) {
+                var data = this._vertsBuffer.slice(offset * 2, this._vertsOffset * 2);
+                var newIndices = Earcut(data, null, 2);
+
+                if (!newIndices) {
+                    continue;
+                }
+
+                var indicesLength = newIndices.length;
+
+                this._allocIndices(indicesLength);
+                var indices = this._indicesBuffer;
+                var indicesOffset = this._indicesOffset;
+                
+                path.indicesOffset = indicesOffset;
+                path.nIndices = indicesLength;
+
+                for (var j = 0, l3 = indicesLength; j < l3; j++) {
+                    indices[indicesOffset + j] = newIndices[j] + offset;
+                }
+
+                this._indicesOffset += indicesLength;
+                this._indicesDirty = true;
             }
-
-            this._allocIndices(newIndices.length);
-            var indices = this._indicesBuffer;
-            var indicesOffset = this._indicesOffset;
-
-            path.indicesOffset = indicesOffset;
-            path.nIndices = newIndices.length;
-
-            for (var j = 0, l3 = newIndices.length; j < l3; j++) {
-                indices[indicesOffset + j] = newIndices[j] + offset;
-            }
-
-            this._indicesOffset += newIndices.length;
         }
     },
 
