@@ -5,8 +5,8 @@ var PointFlags  = require('./types').PointFlags;
 
 var Earcut = require('./earcut');
 
-var CanvasRenderCmd = require('./canvas-cmd');
-var WebGLRenderCmd  = require('./webgl-cmd');
+var CanvasRenderCmd = require('./graphics/canvas-cmd');
+var WebGLRenderCmd  = require('./graphics/webgl-cmd');
 
 var v2    = cc.v2;
 var Vec2  = cc.Vec2;
