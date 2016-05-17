@@ -352,8 +352,8 @@ var Node = cc.Class({
                 value = !!value;
                 if (this._active !== value) {
                     this._active = value;
-                    var canActiveInHierarchy = (this._parent && this._parent._activeInHierarchy);
-                    if (canActiveInHierarchy) {
+                    var couldActiveInHierarchy = (this._parent && this._parent._activeInHierarchy);
+                    if (couldActiveInHierarchy) {
                         this._onActivatedInHierarchy(value);
                         this.emit('active-in-hierarchy-changed', this);
                     }
@@ -419,6 +419,42 @@ var Node = cc.Class({
                     this._objFlags &= ~DontDestroy;
                 }
             }
+        },
+
+        /**
+         * !#en
+         * Group index of node.<br/>
+         * Which Group this node belongs to will resolve that this node's collision components can collide with which other collision componentns.<br/>
+         * !#zh
+         * 节点的分组索引。<br/>
+         * 节点的分组将关系到节点的碰撞组件可以与哪些碰撞组件相碰撞。<br/>
+         * @property groupIndex
+         * @type {Integer}
+         * @default 0
+         */
+        groupIndex: {
+            default: 0,
+            type: cc.Integer
+        },
+
+        /**
+         * !#en
+         * Group of node.<br/>
+         * Which Group this node belongs to will resolve that this node's collision components can collide with which other collision componentns.<br/>
+         * !#zh
+         * 节点的分组。<br/>
+         * 节点的分组将关系到节点的碰撞组件可以与哪些碰撞组件相碰撞。<br/>
+         * @property group
+         * @type {String}
+         */
+        group: {
+            get: function () {
+                return cc.game.groupList[this.groupIndex] || '';
+            },
+
+            set: function (value) {
+                this.groupIndex = cc.game.groupList.indexOf(value);
+            }
         }
     },
 
@@ -449,7 +485,7 @@ var Node = cc.Class({
         this.__eventTargets = [];
 
         // Retained actions for JSB
-        if (cc.sys.isNative) {
+        if (CC_JSB) {
             this._retainedActions = [];
         }
     },
@@ -503,6 +539,14 @@ var Node = cc.Class({
         this._releaseAllActions();
 
         // Remove all listeners
+        if (CC_JSB && this._touchListener) {
+            this._touchListener.release();
+            this._touchListener = null;
+        }
+        if (CC_JSB && this._mouseListener) {
+            this._mouseListener.release();
+            this._mouseListener = null;
+        }
         cc.eventManager.removeListeners(this);
         for (i = 0, len = this.__eventTargets.length; i < len; ++i) {
             var target = this.__eventTargets[i];
@@ -531,8 +575,9 @@ var Node = cc.Class({
                 this._parent = null;
             }
         }
-        else {
+        else if (CC_JSB) {
             this._sgNode.release();
+            this._sgNode = null;
         }
     },
 
@@ -647,7 +692,7 @@ var Node = cc.Class({
      */
     addComponent: function (typeOrClassName) {
 
-        if ((this._objFlags & Destroying) && CC_EDITOR) {
+        if (CC_EDITOR && (this._objFlags & Destroying)) {
             cc.error('isDestroying');
             return null;
         }
@@ -684,7 +729,7 @@ var Node = cc.Class({
             return null;
         }
 
-        if (constructor._disallowMultiple && CC_EDITOR) {
+        if (CC_EDITOR && constructor._disallowMultiple) {
             if (!this._checkMultipleComp(constructor)) {
                 return null;
             }
@@ -714,6 +759,9 @@ var Node = cc.Class({
         this._components.push(component);
 
         if (this._activeInHierarchy) {
+            if (typeof component.__preload === 'function') {
+                cc.Component._callPreloadOnComponent(component);
+            }
             // call onLoad/onEnable
             component.__onNodeActivated(true);
         }
@@ -758,6 +806,9 @@ var Node = cc.Class({
         this._components.splice(index, 0, comp);
 
         if (this._activeInHierarchy) {
+            if (typeof comp.__preload === 'function') {
+                cc.Component._callPreloadOnComponent(comp);
+            }
             // call onLoad/onEnable
             comp.__onNodeActivated(true);
         }
@@ -847,7 +898,7 @@ var Node = cc.Class({
         }
     },
 
-    _onActivatedInHierarchy: function (newActive) {
+    _activeRecursively: function (newActive) {
         var cancelActivation = false;
         if (this._objFlags & Activating) {
             if (newActive) {
@@ -898,7 +949,7 @@ var Node = cc.Class({
         for (var i = 0, len = this._children.length; i < len; ++i) {
             var child = this._children[i];
             if (child._active) {
-                child._onActivatedInHierarchy(newActive);
+                child._activeRecursively(newActive);
                 if (newActive && !this._activeInHierarchy) {
                     // deactivated during activating
                     this._objFlags &= ~Activating;
@@ -928,6 +979,13 @@ var Node = cc.Class({
         this._objFlags &= ~Activating;
     },
 
+    _onActivatedInHierarchy: function (newActive) {
+        if (newActive) {
+            cc.Component._callPreloadOnNode(this);
+        }
+        this._activeRecursively(newActive);
+    },
+
     _onHierarchyChanged: function (oldParent) {
         var newParent = this._parent;
         if (this._persistNode && !(newParent instanceof cc.Scene)) {
@@ -941,6 +999,7 @@ var Node = cc.Class({
         if (activeInHierarchyBefore !== shouldActiveNow) {
             this._onActivatedInHierarchy(shouldActiveNow);
         }
+        cc._widgetManager._nodesOrderDirty = true;
         if (CC_DEV) {
             var scene = cc.director.getScene();
             var inCurrentSceneBefore = oldParent && oldParent.isChildOf(scene);
@@ -978,7 +1037,7 @@ var Node = cc.Class({
     },
 
     _deactivateChildComponents: function () {
-        // 和 _onActivatedInHierarchy 类似但不修改 this._activeInHierarchy
+        // 和 _activeRecursively 类似但不修改 this._activeInHierarchy
         var originCount = this._components.length;
         for (var c = 0; c < originCount; ++c) {
             var component = this._components[c];
@@ -1006,57 +1065,13 @@ var Node = cc.Class({
         return clone;
     },
 
-    _onColorChanged: function () {
-        // update components if also in scene graph
-        for (var c = 0; c < this._components.length; ++c) {
-            var comp = this._components[c];
-            if (comp instanceof cc._SGComponent && comp.isValid && comp._sgNode) {
-                comp._sgNode.setColor(this._color);
-                if ( !this._cascadeOpacityEnabled ) {
-                    comp._sgNode.setOpacity(this._opacity);
-                }
-            }
-        }
-    },
-
-    _onCascadeChanged: function () {
-        // update components which also in scene graph
-        var opacity = this._cascadeOpacityEnabled ? 255 : this._opacity;
-        for (var c = 0; c < this._components.length; ++c) {
-            var comp = this._components[c];
-            if (comp instanceof cc._SGComponent && comp.isValid && comp._sgNode) {
-                comp._sgNode.setOpacity(opacity);
-            }
-        }
-    },
-
-    _onAnchorChanged: function () {
-        // update components if also in scene graph
-        for (var c = 0; c < this._components.length; ++c) {
-            var comp = this._components[c];
-            if (comp instanceof cc._SGComponent && comp.isValid && comp._sgNode) {
-                comp._sgNode.setAnchorPoint(this._anchorPoint);
-                comp._sgNode.ignoreAnchorPointForPosition(this.__ignoreAnchor);
-            }
-        }
-    },
-
-    _onOpacityModifyRGBChanged: function () {
-        for (var c = 0; c < this._components.length; ++c) {
-            var comp = this._components[c];
-            if (comp instanceof cc._SGComponent && comp.isValid && comp._sgNode) {
-                comp._sgNode.setOpacityModifyRGB(this._opacityModifyRGB);
-            }
-        }
-    },
-
 // EVENTS
     /**
      * !#en
      * Register a callback of a specific event type on Node.<br/>
      * Use this method to register touch or mouse event permit propagation based on scene graph,
      * you can propagate the event to the parents or swallow it by calling stopPropagation on the event.<br/>
-     * It's the recommended way to register touch/mouse event for Node, 
+     * It's the recommended way to register touch/mouse event for Node,
      * please do not use cc.eventManager directly for Node.
      * !#zh
      * 在节点上注册指定类型的回调函数，也可以设置 target 用于绑定响应函数的调用者。<br/>
@@ -1088,7 +1103,9 @@ var Node = cc.Class({
                     onTouchMoved: _touchMoveHandler,
                     onTouchEnded: _touchEndHandler
                 });
-                this._touchListener.retain();
+                if (CC_JSB) {
+                    this._touchListener.retain();
+                }
                 cc.eventManager.addListener(this._touchListener, this);
             }
         }
@@ -1104,7 +1121,9 @@ var Node = cc.Class({
                     onMouseUp: _mouseUpHandler,
                     onMouseScroll: _mouseWheelHandler,
                 });
-                this._mouseListener.retain();
+                if (CC_JSB) {
+                    this._mouseListener.retain();
+                }
                 cc.eventManager.addListener(this._mouseListener, this);
             }
         }
@@ -1242,11 +1261,11 @@ var Node = cc.Class({
      * node.runAction(action);
      */
     runAction: function (action) {
-        if (!this.active) 
+        if (!this.active)
             return;
         cc.assert(action, cc._LogInfos.Node.runAction);
 
-        if (cc.sys.isNative) {
+        if (CC_JSB) {
             this._retainAction(action);
             this._sgNode._owner = this;
         }
@@ -1335,14 +1354,14 @@ var Node = cc.Class({
     },
 
     _retainAction: function (action) {
-        if (cc.sys.isNative && action instanceof cc.Action && this._retainedActions.indexOf(action) === -1) {
+        if (CC_JSB && action instanceof cc.Action && this._retainedActions.indexOf(action) === -1) {
             this._retainedActions.push(action);
             action.retain();
         }
     },
 
     _releaseAllActions: function () {
-        if (cc.sys.isNative) {
+        if (CC_JSB) {
             for (var i = 0; i < this._retainedActions.length; ++i) {
                 this._retainedActions[i].release();
             }
@@ -1354,7 +1373,7 @@ var Node = cc.Class({
 
 // In JSB, when inner sg node being replaced, the system event listeners will be cleared.
 // We need a mechanisme to guarentee the persistence of system event listeners.
-if (cc.sys.isNative) {
+if (CC_JSB) {
     cc.js.getset(Node.prototype, '_sgNode',
         function () {
             return this.__sgNode;
@@ -1385,15 +1404,6 @@ if (cc.sys.isNative) {
  * @param {Vec2} event.detail - old position
  */
 /**
- * @event rotation-changed
- * @param {Event} event
- * @param {Number} event.detail - old rotation x
- */
-/**
- * @event scale-changed
- * @param {Event} event
- * @param {Vec2} event.detail - old scale
- */
 /**
  * @event size-changed
  * @param {Event} event
@@ -1403,16 +1413,6 @@ if (cc.sys.isNative) {
  * @event anchor-changed
  * @param {Event} event
  * @param {Vec2} event.detail - old anchor
- */
-/**
- * @event color-changed
- * @param {Event} event
- * @param {Color} event.detail - old color
- */
-/**
- * @event opacity-changed
- * @param {Event} event
- * @param {Number} event.detail - old opacity
  */
 /**
  * @event child-added

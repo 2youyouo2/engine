@@ -130,18 +130,15 @@ var AudioSource = cc.Class({
                 this._mute = value;
                 if (this.audio) {
                     if (this._mute) {
-                        if (cc.sys.isNative) {
+                        if (CC_JSB) {
                             cc.audioEngine.setEffectsVolume(0);
-                        }
-                        else {
+                        } else {
                             this.audio.setVolume(0);
                         }
-                    }
-                    else {
-                        if (cc.sys.isNative) {
+                    } else {
+                        if (CC_JSB) {
                             cc.audioEngine.setEffectsVolume(this._volume);
-                        }
-                        else {
+                        } else {
                             this.audio.setVolume(this._volume);
                         }
                     }
@@ -206,14 +203,10 @@ var AudioSource = cc.Class({
     play: function () {
         if ( this._clip ) {
             var volume = this._mute ? 0 : this._volume;
-            if (cc.sys.isNative) {
-                audioEngine.playEffect(this._clip, this._loop);
+            this.audio = audioEngine.playEffect(this._clip, this._loop, volume);
+
+            if (CC_JSB) {
                 cc.audioEngine.setEffectsVolume(volume);
-            }
-            else {
-                this.audio = audioEngine.playEffect(this._clip, this._loop);
-                if (this.audio)
-                    this.audio.setVolume(volume);
             }
         }
     },

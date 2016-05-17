@@ -67,7 +67,7 @@ var Color = (function () {
         this.a = typeof a === 'number' ? a : 255;
     }
     JS.extend(Color, ValueType);
-    require('../platform/CCClass').fastDefine('cc.Color', Color, ['r', 'g', 'b', 'a']);
+    require('../platform/CCClass').fastDefine('cc.Color', Color, { r: 0, g: 0, b: 0, a: 255 });
 
     var DefaultColors = {
         // color: [r, g, b, a]
@@ -586,11 +586,11 @@ cc.Color = Color;
  * @example {@link utils/api/engine/docs/cocos2d/core/value-types/CCColor/color.js}
  */
 cc.color = function color (r, g, b, a) {
-    if (JS.isString(r)) {
+    if (typeof r === 'string') {
         var result = new cc.Color();
         return result.fromHEX(r);
     }
-    if (cc.js.isObject(r)) {
+    if (typeof r === 'object') {
         return new cc.Color(r.r, r.g, r.b, r.a);
     }
     return  new cc.Color(r, g, b, a);

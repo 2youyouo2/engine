@@ -68,7 +68,6 @@ var AssetLibrary = {
     loadAsset: function (uuid, callback, options) {
         // var readMainCache = typeof (options && options.readMainCache) !== 'undefined' ? readMainCache : true;
         // var writeMainCache = typeof (options && options.writeMainCache) !== 'undefined' ? writeMainCache : true;
-
         var item = {
             id: uuid,
             type: 'uuid'
@@ -109,7 +108,7 @@ var AssetLibrary = {
 
     _getAssetInfoInRuntime: function (uuid) {
         var info = _uuidToRawAssets[uuid];
-        if (info && info.raw) {
+        if (info && !cc.isChildClassOf(info.type, cc.Asset)) {
             return {
                 url: _rawAssetsBase + info.url,
                 raw: true,
@@ -184,31 +183,20 @@ var AssetLibrary = {
      */
     _loadAssetByUuid: function (item, callback) {
         var uuid = item.id;
-        var thisTick = true;
         if (typeof uuid !== 'string') {
             return callInNextTick(callback, new Error('[AssetLibrary] uuid must be string'), null);
         }
-
         Loader.load(item, function (error, asset) {
             if (error || !asset) {
                 error = new Error('[AssetLibrary] loading JSON or dependencies failed: ' + error.message);
             }
-            if (thisTick) {
-                callInNextTick(function () {
-                    if (isScene(asset) || CC_EDITOR) {
-                        Loader.removeItem(uuid);
-                    }
-                    callback(error, asset);
-                });
+            else if (CC_EDITOR || isScene(asset)) {
+                Loader.removeItem(uuid);
             }
-            else {
-                if (isScene(asset) || CC_EDITOR) {
-                    Loader.removeItem(uuid);
-                }
+            if (callback) {
                 callback(error, asset);
             }
         });
-        thisTick = false;
     },
 
     /**
@@ -220,7 +208,6 @@ var AssetLibrary = {
      */
     loadJson: function (json, callback) {
         var randomUuid = '' + ((new Date()).getTime() + Math.random());
-        var thisTick = true;
         var item = {
             id: randomUuid,
             type: 'uuid',
@@ -231,24 +218,14 @@ var AssetLibrary = {
             if (error) {
                 error = new Error('[AssetLibrary] loading JSON or dependencies failed: ' + error.message);
             }
-            if (thisTick) {
-                callInNextTick(function () {
-                    if (isScene(asset) || CC_EDITOR) {
-                        Loader.removeItem(randomUuid);
-                    }
-                    asset._uuid = '';
-                    callback(error, asset);
-                });
+            else if (CC_EDITOR || isScene(asset)) {
+                Loader.removeItem(randomUuid);
             }
-            else {
-                if (isScene(asset) || CC_EDITOR) {
-                    Loader.removeItem(randomUuid);
-                }
-                asset._uuid = '';
+            asset._uuid = '';
+            if (callback) {
                 callback(error, asset);
             }
         });
-        thisTick = false;
     },
 
     /**
@@ -288,6 +265,8 @@ var AssetLibrary = {
         _rawAssetsBase = options.rawAssetsBase;
 
         _uuidToRawAssets = {};
+        var resources = Loader._resources;
+        resources.reset();
         var rawAssets = options.rawAssets;
         if (rawAssets) {
             var RES_DIR = 'resources/';
@@ -295,15 +274,20 @@ var AssetLibrary = {
                 var assets = rawAssets[mountPoint];
                 for (var uuid in assets) {
                     var info = assets[uuid];
-                    var url = info.url;
-                    var raw = info.raw;
+                    var url = info[0];
+                    var typeId = info[1];
+                    var type = cc.js._getClassById(typeId);
+                    if (!type) {
+                        cc.error('Cannot get', typeId);
+                        continue;
+                    }
                     _uuidToRawAssets[uuid] = {
                         url: mountPoint + '/' + url,
-                        raw: !!raw,
+                        type: type,
                     };
                     // init resources
                     if (mountPoint === 'assets' && url.startsWith(RES_DIR)) {
-                        if ( !raw ) {
+                        if (cc.isChildClassOf(type, Asset)) {
                             var ext = cc.path.extname(url);
                             if (ext) {
                                 // trim base dir and extname
@@ -317,8 +301,9 @@ var AssetLibrary = {
                         else {
                             url = url.slice(RES_DIR.length);
                         }
+                        var isSubAsset = info[2] === 1;
                         // register
-                        Loader._resources.add(url, uuid);
+                        resources.add(url, uuid, type, !isSubAsset);
                     }
                 }
             }

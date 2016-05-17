@@ -775,7 +775,7 @@ cc.LabelTTF = _ccsg.Sprite.extend(/** @lends cc.LabelTTF# */{
     }
 });
 
-cc.assert(cc.js.isFunction(cc._tmp.PrototypeLabelTTF), cc._LogInfos.MissingFile, "LabelTTFPropertyDefine.js");
+cc.assert(typeof cc._tmp.PrototypeLabelTTF === 'function', cc._LogInfos.MissingFile, "LabelTTFPropertyDefine.js");
 cc._tmp.PrototypeLabelTTF();
 delete cc._tmp.PrototypeLabelTTF;
 
@@ -858,5 +858,18 @@ cc.LabelTTF.__getFontHeightByDiv = function (fontName, fontSize) {
     return clientHeight;
 
 };
+
+// fireball#2856
+
+var labelTTFPro = cc.LabelTTF.prototype;
+Object.defineProperty(labelTTFPro, 'width', {
+    get: labelTTFPro._getWidth,
+    set: _ccsg.Node.prototype._setWidth
+});
+
+Object.defineProperty(labelTTFPro, 'height', {
+    get: labelTTFPro._getHeight,
+    set: _ccsg.Node.prototype._setHeight
+});
 
 cc.LabelTTF.__fontHeightCache = {};

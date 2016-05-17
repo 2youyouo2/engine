@@ -522,7 +522,7 @@ var ScrollView = cc.Class({
     _onMouseWheel: function(event) {
         var deltaMove = cc.p(0, 0);
         var wheelPrecision = 1.0 / 40;
-        if(cc.sys.isNative) {
+        if(CC_JSB) {
             wheelPrecision = 7;
         }
         if(this.vertical) {
@@ -569,6 +569,7 @@ var ScrollView = cc.Class({
         var anchor = options.anchor;
         var applyToHorizontal = options.applyToHorizontal;
         var applyToVertical = options.applyToVertical;
+        this._calculateBoundary();
 
         anchor = cc.pClamp(anchor, cc.p(0, 0), cc.p(1, 1));
 
@@ -694,6 +695,7 @@ var ScrollView = cc.Class({
 
     _handlePressLogic: function() {
         this._autoScrolling = false;
+        this._calculateBoundary();
 
         this._touchMovePreviousTimestamp = getTimeInMilliseconds();
         this._touchMoveDisplacements = [];
@@ -1022,7 +1024,7 @@ var ScrollView = cc.Class({
     },
 
     //component life cycle methods
-    onLoad: function () {
+    __preload: function () {
         if (!CC_EDITOR) {
             this._registerEvent();
             if(cc.isValid(this.content)) {

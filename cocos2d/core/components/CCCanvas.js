@@ -136,7 +136,7 @@ var Canvas = cc.Class({
         this._thisOnResized = this.onResized.bind(this);
     },
 
-    onLoad: function () {
+    __preload: function () {
         var Flags = cc.Object.Flags;
         this._objFlags |= (Flags.IsPositionLocked | Flags.IsAnchorLocked | Flags.IsSizeLocked);
 
@@ -158,7 +158,7 @@ var Canvas = cc.Class({
         if (CC_EDITOR) {
             cc.engine.on('design-resolution-changed', this._thisOnResized);
         }
-        else if (!cc.sys.isNative) {
+        else if (!CC_JSB) {
             if (cc.sys.isMobile) {
                 window.addEventListener('resize', this._thisOnResized);
             }
@@ -181,7 +181,7 @@ var Canvas = cc.Class({
         if (CC_EDITOR) {
             cc.engine.off('design-resolution-changed', this._thisOnResized);
         }
-        else if (!cc.sys.isNative) {
+        else if (!CC_JSB) {
             if (cc.sys.isMobile) {
                 window.removeEventListener('resize', this._thisOnResized);
             }

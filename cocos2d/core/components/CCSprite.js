@@ -161,9 +161,15 @@ var Sprite = cc.Class({
                 return this._spriteFrame;
             },
             set: function (value, force) {
+                if (this._spriteFrame === value) {
+                    return;
+                }
                 var lastSprite = this._spriteFrame;
                 this._spriteFrame = value;
                 this._applySpriteFrame(lastSprite);
+                if (CC_EDITOR) {
+                    this.node.emit('spriteframe-changed', this);
+                }
             },
             type: cc.SpriteFrame,
         },
@@ -499,7 +505,7 @@ var Sprite = cc.Class({
         return this._sgNode.getInsetBottom();
     },
 
-    onLoad: CC_EDITOR && function () {
+    __preload: CC_EDITOR && function () {
         this._super();
         this.node.on('size-changed', this._resized, this);
     },

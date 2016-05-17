@@ -36,6 +36,7 @@ if (!CC_EDITOR || !Editor.isMainProcess) {
 
     require('./components');
     require('./graphics');
+    require('./collider');
 }
 
 require('./base-ui/CCWidgetManager');

@@ -346,7 +346,7 @@ _ccsg.ParticleSystem = _ccsg.Node.extend({
             this.initWithTotalParticles(ton);
         } else if (cc.js.isString(plistFile)) {
             this.initWithFile(plistFile);
-        } else if (cc.js.isObject(plistFile)) {
+        } else if (typeof plistFile === 'object') {
             this.initWithDictionary(plistFile, "");
         }
     },
@@ -2216,4 +2216,21 @@ _ccsg.ParticleSystem.Type = cc.Enum({
      * Living particles are attached to the emitter and are translated along with it.
      */
     GROUPED: 2
+});
+
+// fireball#2856
+
+var particleSystemPro = _ccsg.ParticleSystem.prototype;
+Object.defineProperty(particleSystemPro, 'visible', {
+    get: _ccsg.Node.prototype.isVisible,
+    set: particleSystemPro.setVisible
+});
+
+Object.defineProperty(particleSystemPro, 'ignoreAnchor', {
+    get: _ccsg.Node.prototype.isIgnoreAnchorPointForPosition,
+    set: particleSystemPro.ignoreAnchorPointForPosition
+});
+
+Object.defineProperty(particleSystemPro, 'opacityModifyRGB', {
+    get: particleSystemPro.isOpacityModifyRGB
 });

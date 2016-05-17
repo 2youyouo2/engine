@@ -405,7 +405,7 @@ cc.SpriteFrame = cc.Class(/** @lends cc.SpriteFrame# */{
                 uuid = Editor.UuidCache.urlToUuid(url);
             }
         }
-        var capInsets = undefined;
+        var capInsets;
         if (this.insetLeft !== 0 ||
             this.insetTop !== 0 ||
             this.insetRight !== 0 ||
@@ -419,7 +419,7 @@ cc.SpriteFrame = cc.Class(/** @lends cc.SpriteFrame# */{
             rect: rect ? [rect.x, rect.y, rect.width, rect.height] : undefined,
             offset: offset ? [offset.x, offset.y] : undefined,
             originalSize: size ? [size.width, size.height] : undefined,
-            rotated: this._rotated ? 1 : 0,
+            rotated: this._rotated ? 1 : undefined,
             capInsets: capInsets
         };
     },
