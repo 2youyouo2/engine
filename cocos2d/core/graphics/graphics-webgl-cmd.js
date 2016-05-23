@@ -10,6 +10,7 @@ var Js    = cc.js;
 
 // Math
 var PI = 3.14159265358979323846264338327;
+var PI_2 = PI*2;
 var INIT_VERTS_SIZE = 32;
 var KAPPA90 = 0.5522847493;
 
@@ -69,7 +70,6 @@ function Path () {
 }
 Path.prototype.reset = function () {
     this.closed = false;
-    this.convex = false;
     this.nbevel = 0;
     this.complex = true;
 
@@ -252,7 +252,22 @@ Js.mixin(_p, {
     },
 
     circle: function (cx, cy, r) {
-        this.ellipse(cx, cy, r, r);
+        // this.ellipse(cx, cy, r, r);
+        var divs = this._curveDivs(r, PI_2, this._tessTol);
+        var step = PI_2 / divs;
+
+        this.moveTo(cx, cy + r);
+
+        for (var i = 1; i < divs; i++) {
+            var angle = step * i;
+            var x = r * sin(angle);
+            var y = r * cos(angle);
+
+            this.lineTo(cx + x, cy + y);
+        }
+
+        this.close();
+        this._curPath.complex = false;
     },
 
     rect: function (x, y, w, h) {
@@ -776,17 +791,13 @@ Js.mixin(_p, {
             path.nbevel = 0;
 
             for (var j = 0; j < ptsLength; j++) {
-                var dlx0,
-                    dly0,
-                    dlx1,
-                    dly1,
-                    dmr2,
-                    cross,
-                    limit;
-                dlx0 = p0.dy;
-                dly0 = -p0.dx;
-                dlx1 = p1.dy;
-                dly1 = -p1.dx;
+                var dmr2, cross, limit;
+
+                var dlx0 = p0.dy;
+                var dly0 = -p0.dx;
+                var dlx1 = p1.dy;
+                var dly1 = -p1.dx;
+
                 // Calculate extrusions
                 p1.dmx = (dlx0 + dlx1) * 0.5;
                 p1.dmy = (dly0 + dly1) * 0.5;
@@ -827,8 +838,6 @@ Js.mixin(_p, {
                 p0 = p1;
                 p1 = pts[j + 1];
             }
-
-            path.convex = nleft === ptsLength;
         }
     },
 
