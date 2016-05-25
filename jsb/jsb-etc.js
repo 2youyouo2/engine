@@ -120,6 +120,7 @@ cc.TextureCache.prototype.addImage = function(url, cb, target) {
 };
 
 // View
+cc.view.isViewReady = cc.view.isOpenGLReady;
 cc.view.setOrientation = function () {};
 
 // setTimeout, setInterval, clearTimeout, clearInteval
@@ -202,6 +203,7 @@ window._ccsg = {
     ParticleSystem: cc.ParticleSystem,
     Label: cc.Label,
     EditBox: cc.EditBox,
+    VideoPlayer: cc.VideoPlayer,
     TMXTiledMap: cc.TMXTiledMap,
     TMXLayer: cc.TMXLayer,
     MotionStreak: cc.MotionStreak

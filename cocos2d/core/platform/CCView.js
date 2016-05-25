@@ -303,7 +303,6 @@ var View = cc._Class.extend({
             locFrameSize.height = h;
             cc.container.style['-webkit-transform'] = 'rotate(0deg)';
             cc.container.style.transform = 'rotate(0deg)';
-            cc.container.style.margin = '0';
             this._isRotated = false;
         }
         else {
@@ -313,7 +312,6 @@ var View = cc._Class.extend({
             cc.container.style.transform = 'rotate(90deg)';
             cc.container.style['-webkit-transform-origin'] = '0px 0px 0px';
             cc.container.style.transformOrigin = '0px 0px 0px';
-            cc.container.style.marginLeft = '100%';
             this._isRotated = true;
         }
     },
@@ -1053,7 +1051,7 @@ cc.ContentStrategy = cc._Class.extend(/** @lends cc.ContentStrategy# */{
      */
     var EqualToFrame = cc.ContainerStrategy.extend({
         apply: function (view, designedResolution) {
-            this._setupContainer(view, view._frameSize.width, view._frameSize.height, designedResolution.width, designedResolution.height);
+            this._setupContainer(view, view._frameSize.width, view._frameSize.height);
         }
     });
 
@@ -1076,12 +1074,20 @@ cc.ContentStrategy = cc._Class.extend(/** @lends cc.ContentStrategy# */{
             containerW = frameW - 2 * offx;
             containerH = frameH - 2 * offy;
 
-            this._setupContainer(view, containerW, containerH, designW, designH);
-            // Setup container's padding
-            containerStyle.paddingLeft = offx + "px";
-            containerStyle.paddinRight = offx + "px";
-            containerStyle.paddinTop = offy + "px";
-            containerStyle.paddinBottom = offy + "px";
+            this._setupContainer(view, containerW, containerH);
+            if (!CC_EDITOR) {
+                if (view._isRotated) {
+                    containerStyle.marginLeft = frameH + 'px';
+                }
+                else {
+                    containerStyle.margin = '0px';
+                }
+                // Setup container's padding
+                containerStyle.paddingLeft = offx + "px";
+                containerStyle.paddingRight = offx + "px";
+                containerStyle.paddingTop = offy + "px";
+                containerStyle.paddingBottom = offy + "px";
+            }
         }
     });
 
@@ -1123,7 +1129,7 @@ cc.ContentStrategy = cc._Class.extend(/** @lends cc.ContentStrategy# */{
      */
     var OriginalContainer = cc.ContainerStrategy.extend({
         apply: function (view, designedResolution) {
-            this._setupContainer(view, cc.game.canvas.width, cc.game.canvas.height, designedResolution.width, designedResolution.height);
+            this._setupContainer(view, cc.game.canvas.width, cc.game.canvas.height);
         }
     });
 
