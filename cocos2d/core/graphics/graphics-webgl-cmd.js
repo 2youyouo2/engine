@@ -5,6 +5,55 @@ var LineJoin    = require('./types').LineJoin;
 
 var Earcut = require('./earcut');
 
+// NOTE ON EXTRUDE SCALE:
+// scale the extrusion vector so that the normal length is this value.
+// contains the "texture" normals (-1..1). this is distinct from the extrude
+// normals for line joins, because the x-value remains 0 for the texture
+// normal array, while the extrude normal actually moves the vertex to create
+// the acute/bevelled line join.
+var EXTRUDE_SCALE = 63;
+
+/*
+ * Sharp corners cause dashed lines to tilt because the distance along the line
+ * is the same at both the inner and outer corners. To improve the appearance of
+ * dashed lines we add extra points near sharp corners so that a smaller part
+ * of the line is tilted.
+ *
+ * COS_HALF_SHARP_CORNER controls how sharp a corner has to be for us to add an
+ * extra vertex. The default is 75 degrees.
+ *
+ * The newly created vertices are placed SHARP_CORNER_OFFSET pixels from the corner.
+ */
+var COS_HALF_SHARP_CORNER = Math.cos(75 / 2 * (Math.PI / 180));
+var SHARP_CORNER_OFFSET = 15;
+
+// The number of bits that is used to store the line distance in the buffer.
+var LINE_DISTANCE_BUFFER_BITS = 14;
+
+// We don't have enough bits for the line distance as we'd like to have, so
+// use this value to scale the line distance (in tile units) down to a smaller
+// value. This lets us store longer distances while sacrificing precision.
+var LINE_DISTANCE_SCALE = 1 / 2;
+
+// The maximum line distance, in tile units, that fits in the buffer.
+var MAX_LINE_DISTANCE = Math.pow(2, LINE_DISTANCE_BUFFER_BITS) / LINE_DISTANCE_SCALE;
+
+/**
+ * The maximum extent of a feature that can be safely stored in the buffer.
+ * In practice, all features are converted to this extent before being added.
+ *
+ * Positions are stored as signed 16bit integers.
+ * One bit is lost for signedness to support featuers extending past the left edge of the tile.
+ * One bit is lost because the line vertex buffer packs 1 bit of other data into the int.
+ * One bit is lost to support features extending past the extent on the right edge of the tile.
+ * This leaves us with 2^13 = 8192
+ *
+ * @private
+ * @readonly
+ */
+var EXTENT = 8192;
+
+
 var Vec2  = cc.Vec2;
 var Js    = cc.js;
 
@@ -14,8 +63,7 @@ var PI_2 = PI*2;
 var INIT_VERTS_SIZE = 32;
 var KAPPA90 = 0.5522847493;
 
-var VERTS_FLOAT_LENGTH = 2;
-var VERTS_BYTE_LENGTH  = 8;
+var VERTS_BYTE_LENGTH  = 12;
 
 var min     = Math.min;
 var max     = Math.max;
@@ -49,18 +97,18 @@ var PointFlags =  cc.Enum({
 // Point
 function Point (x, y) {
     Vec2.call(this, x, y);
-    this.reset();
+    // this.reset();
 }
 Js.extend(Point, Vec2);
 
 Js.mixin(Point.prototype, {
     reset: function () {
-        this.dx = 0;
-        this.dy = 0;
-        this.dmx = 0;
-        this.dmy = 0;
-        this.flags = 0;
-        this.len = 0;
+        // this.dx = 0;
+        // this.dy = 0;
+        // this.dmx = 0;
+        // this.dmy = 0;
+        // this.flags = 0;
+        // this.len = 0;
     }
 });
 
@@ -312,8 +360,7 @@ Js.mixin(_p, {
     },
 
     stroke: function () {
-        this._flattenPaths();
-
+        // this._flattenPaths();
         this._expandStroke();
 
         this._vertsDirty = true;
@@ -323,11 +370,11 @@ Js.mixin(_p, {
     fill: function () {
         // this._flattenPaths();
 
-        this._expandFill();
+        // this._expandFill();
 
-        this._vertsDirty = true;
-        this._updatePathOffset = true;
-        this._filling = false;
+        // this._vertsDirty = true;
+        // this._updatePathOffset = true;
+        // this._filling = false;
     }
 });
 
@@ -536,7 +583,7 @@ Js.mixin(_p, {
     _allocVerts: function (cverts) {
         var dnverts = this._vertsOffset + cverts;
         var buffer = this._vertsBuffer;
-        var nverts = buffer ? buffer.length / VERTS_FLOAT_LENGTH : 0;
+        var nverts = buffer ? buffer.length / VERTS_BYTE_LENGTH : 0;
 
         if (dnverts > nverts) {
             if (nverts === 0) {
@@ -547,7 +594,7 @@ Js.mixin(_p, {
                 nverts *= 2;
             }
 
-            var newBuffer = new Float32Array(nverts * VERTS_FLOAT_LENGTH);
+            var newBuffer = new Float32Array(nverts * VERTS_BYTE_LENGTH);
 
             if (buffer) {
                 for (var i = 0, l = buffer.length; i < l; i++) {
@@ -585,483 +632,869 @@ Js.mixin(_p, {
     },
 
     _expandStroke: function () {
-        var w = this.lineWidth * 0.5,
-            lineCap = this.lineCap,
-            lineJoin = this.lineJoin,
-            miterLimit = this.miterLimit;
+        var join, cap;
+        var miterLimit = 2;
+        var roundLimit = 1.05;
 
-        var ncap = this._curveDivs(w, PI, this._tessTol);
-        var paths = this._paths;
-
-        this._calculateJoins(w, lineJoin, miterLimit);
-
-        // Calculate max vertex usage.
-        var cverts = 0;
-        for (var i = this._pathOffset, l = this._pathLength; i < l; i++) {
-            var path = paths[i];
-            var pointsLength = path.points.length;
-
-            if (lineJoin === LineJoin.ROUND) cverts += (pointsLength + path.nbevel * (ncap + 2) + 1) * 2; // plus one for loop
-            else cverts += (pointsLength + path.nbevel * 5 + 1) * 2; // plus one for loop
-
-            if (!path.closed) {
-                // space for caps
-                if (lineCap === LineCap.ROUND) {
-                    cverts += (ncap * 2 + 2) * 2;
-                } else {
-                    cverts += (3 + 3) * 2;
-                }
-            }
+        if (this.lineJoin === LineJoin.BEVEL) {
+            join = 'bevel';
+        }
+        else if (this.lineJoin === LineJoin.ROUND) {
+            join = 'round';
+        }
+        else if (this.lineJoin === LineJoin.MITER) {
+            join = 'miter';
         }
 
-        this._allocVerts(cverts);
+        if (this.lineCap === LineCap.BUTT) {
+            cap = 'butt';
+        }
+        else if (this.lineCap === LineCap.ROUND) {
+            cap = 'round';
+        }
+        else if (this.lineCap === LineCap.SQUARE) {
+            cap = 'square';
+        }
 
-        for (var i = this._pathOffset, l = this._pathLength; i < l; i++) {
-            var path = paths[i];
-            var pts = path.points;
-            var pointsLength = path.points.length;
+        for (var j = this._pathOffset, l = this._pathLength; j < l; j++) {
 
-            path.strokeColor = this._strokeColor;
+            var path = this._paths[j];
+            var vertices = path.points;
 
-            var p0, p1;
-            var s, e, loop;
+            var indicesOffset = this._indicesOffset;
+            var vertsOffset = this._vertsOffset;
 
-            loop = path.closed;
-            var offset = path.strokeOffset = this._vertsOffset;
+            path.indicesOffset = indicesOffset;
+            path.vertsOffset = vertsOffset;
 
-            if (loop) {
-                // Looping
-                p0 = pts[pointsLength - 1];
-                p1 = pts[0];
-                s = 0;
-                e = pointsLength;
-            } else {
-                // Add cap
-                p0 = pts[0];
-                p1 = pts[1];
-                s = 1;
-                e = pointsLength - 1;
+            var len = vertices.length;
+            // If the line has duplicate vertices at the end, adjust length to remove them.
+            while (len > 2 && vertices[len - 1].equals(vertices[len - 2])) {
+                len--;
             }
 
-            if (!loop) {
-                // Add cap
-                var dPos = p1.sub(p0);
-                dPos.normalizeSelf();
+            // a line must have at least two vertices
+            if (vertices.length < 2) return;
 
-                var dx = dPos.x;
-                var dy = dPos.y;
+            if (join === 'bevel') miterLimit = 1.05;
 
-                if (lineCap === LineCap.BUTT) 
-                    this._buttCap(p0, dx, dy, w, 0);
-                else if (lineCap === LineCap.SQUARE) 
-                    this._buttCap(p0, dx, dy, w, w);
-                else if (lineCap === LineCap.ROUND) 
-                    this._roundCapStart(p0, dx, dy, w, ncap);
+            var sharpCornerOffset = SHARP_CORNER_OFFSET * (EXTENT / (512 * this.overscaling));
+
+            var firstVertex = vertices[0],
+                lastVertex = vertices[len - 1],
+                closed = firstVertex.equals(lastVertex);
+
+            // we could be more precise, but it would only save a negligible amount of space
+            // this.makeRoomFor('line', len * 10);
+            this._allocVerts(len * 10);
+
+            // a line may not have coincident points
+            if (len === 2 && closed) return;
+
+            this._distance = 0;
+
+            var beginCap = cap,
+                endCap = closed ? 'butt' : cap,
+                startOfLine = true,
+                currentVertex, prevVertex, nextVertex, prevNormal, nextNormal, offsetA, offsetB;
+
+            // the last three vertices added
+            this.e1 = this.e2 = this.e3 = -1;
+
+            if (closed) {
+                currentVertex = vertices[len - 2];
+                nextNormal = firstVertex.sub(currentVertex).normalizeSelf().perpSelf();
             }
 
-            for (var j = s; j < e; ++j) {
-                if ((p1.flags & (PointFlags.PT_BEVEL | PointFlags.PT_INNERBEVEL)) !== 0) {
-                    if (lineJoin === LineJoin.ROUND || p1.flags & PointFlags.PT_ROUND) {
-                        this._roundJoin(p0, p1, w, w, ncap);
-                    } else {
-                        this._bevelJoin(p0, p1, w, w);
+            for (var i = 0; i < len; i++) {
+
+                nextVertex = closed && i === len - 1 ?
+                    vertices[1] : // if the line is closed, we treat the last vertex like the first
+                    vertices[i + 1]; // just the next vertex
+
+                // if two consecutive vertices exist, skip the current one
+                if (nextVertex && vertices[i].equals(nextVertex)) continue;
+
+                if (nextNormal) prevNormal = nextNormal;
+                if (currentVertex) prevVertex = currentVertex;
+
+                currentVertex = vertices[i];
+
+                // Calculate the normal towards the next vertex in this line. In case
+                // there is no next vertex, pretend that the line is continuing straight,
+                // meaning that we are just using the previous normal.
+                nextNormal = nextVertex ? nextVertex.sub(currentVertex).normalizeSelf().perpSelf() : prevNormal;
+
+                // If we still don't have a previous normal, this is the beginning of a
+                // non-closed line, so we're doing a straight "join".
+                prevNormal = prevNormal || nextNormal;
+
+                // Determine the normal of the join extrusion. It is the angle bisector
+                // of the segments between the previous line and the next line.
+                var joinNormal = prevNormal.add(nextNormal).normalizeSelf();
+
+                /*  joinNormal     prevNormal
+                 *             ↖      ↑
+                 *                .________. prevVertex
+                 *                |
+                 * nextNormal  ←  |  currentVertex
+                 *                |
+                 *     nextVertex !
+                 *
+                 */
+
+                // Calculate the length of the miter (the ratio of the miter to the width).
+                // Find the cosine of the angle between the next and join normals
+                // using dot product. The inverse of that is the miter length.
+                var cosHalfAngle = joinNormal.x * nextNormal.x + joinNormal.y * nextNormal.y;
+                var miterLength = 1 / cosHalfAngle;
+
+                var isSharpCorner = cosHalfAngle < COS_HALF_SHARP_CORNER && prevVertex && nextVertex;
+
+                if (isSharpCorner && i > 0) {
+                    var prevSegmentLength = currentVertex.mag(prevVertex);
+                    if (prevSegmentLength > 2 * sharpCornerOffset) {
+                        var newPrevVertex = currentVertex.sub(currentVertex.sub(prevVertex).mulSelf(sharpCornerOffset / prevSegmentLength).roundSelf());
+                        this._distance += newPrevVertex.mag(prevVertex);
+                        this.addCurrentVertex(path, newPrevVertex, this._distance, prevNormal.mult(1), 0, 0, false);
+                        prevVertex = newPrevVertex;
                     }
-                } else {
-                    this._vset(p1.x + p1.dmx * w, p1.y + p1.dmy * w);
-                    this._vset(p1.x - p1.dmx * w, p1.y - p1.dmy * w);
                 }
-                p0 = p1;
-                p1 = pts[j + 1];
+
+                // The join if a middle vertex, otherwise the cap.
+                var middleVertex = prevVertex && nextVertex;
+                var currentJoin = middleVertex ? join : nextVertex ? beginCap : endCap;
+
+                if (middleVertex && currentJoin === 'round') {
+                    if (miterLength < roundLimit) {
+                        currentJoin = 'miter';
+                    } else if (miterLength <= 2) {
+                        currentJoin = 'fakeround';
+                    }
+                }
+
+                if (currentJoin === 'miter' && miterLength > miterLimit) {
+                    currentJoin = 'bevel';
+                }
+
+                if (currentJoin === 'bevel') {
+                    // The maximum extrude length is 128 / 63 = 2 times the width of the line
+                    // so if miterLength >= 2 we need to draw a different type of bevel where.
+                    if (miterLength > 2) currentJoin = 'flipbevel';
+
+                    // If the miterLength is really small and the line bevel wouldn't be visible,
+                    // just draw a miter join to save a triangle.
+                    if (miterLength < miterLimit) currentJoin = 'miter';
+                }
+
+                // Calculate how far along the line the currentVertex is
+                if (prevVertex) this._distance += currentVertex.mag(prevVertex);
+
+                if (currentJoin === 'miter') {
+
+                    joinNormal._mult(miterLength);
+                    this.addCurrentVertex(path, currentVertex, this._distance, joinNormal, 0, 0, false);
+
+                } else if (currentJoin === 'flipbevel') {
+                    // miter is too big, flip the direction to make a beveled join
+
+                    if (miterLength > 100) {
+                        // Almost parallel lines
+                        joinNormal = nextNormal.clone();
+
+                    } else {
+                        var direction = prevNormal.x * nextNormal.y - prevNormal.y * nextNormal.x > 0 ? -1 : 1;
+                        var bevelLength = miterLength * prevNormal.add(nextNormal).mag() / prevNormal.sub(nextNormal).mag();
+                        joinNormal._perp()._mult(bevelLength * direction);
+                    }
+                    this.addCurrentVertex(path, currentVertex, this._distance, joinNormal, 0, 0, false);
+                    this.addCurrentVertex(path, currentVertex, this._distance, joinNormal.mult(-1), 0, 0, false);
+
+                } else if (currentJoin === 'bevel' || currentJoin === 'fakeround') {
+                    var lineTurnsLeft = (prevNormal.x * nextNormal.y - prevNormal.y * nextNormal.x) > 0;
+                    var offset = -Math.sqrt(miterLength * miterLength - 1);
+                    if (lineTurnsLeft) {
+                        offsetB = 0;
+                        offsetA = offset;
+                    } else {
+                        offsetA = 0;
+                        offsetB = offset;
+                    }
+
+                    // Close previous segment with a bevel
+                    if (!startOfLine) {
+                        this.addCurrentVertex(path, currentVertex, this._distance, prevNormal, offsetA, offsetB, false);
+                    }
+
+                    if (currentJoin === 'fakeround') {
+                        // The join angle is sharp enough that a round join would be visible.
+                        // Bevel joins fill the gap between segments with a single pie slice triangle.
+                        // Create a round join by adding multiple pie slices. The join isn't actually round, but
+                        // it looks like it is at the sizes we render lines at.
+
+                        // Add more triangles for sharper angles.
+                        // This math is just a good enough approximation. It isn't "correct".
+                        var n = Math.floor((0.5 - (cosHalfAngle - 0.5)) * 8);
+                        var approxFractionalJoinNormal;
+
+                        for (var m = 0; m < n; m++) {
+                            approxFractionalJoinNormal = nextNormal.mult((m + 1) / (n + 1)).addSelf(prevNormal).normalizeSelf();
+                            this.addPieSliceVertex(path, currentVertex, this._distance, approxFractionalJoinNormal, lineTurnsLeft);
+                        }
+
+                        this.addPieSliceVertex(path, currentVertex, this._distance, joinNormal, lineTurnsLeft);
+
+                        for (var k = n - 1; k >= 0; k--) {
+                            approxFractionalJoinNormal = prevNormal.mult((k + 1) / (n + 1)).addSelf(nextNormal).normalizeSelf();
+                            this.addPieSliceVertex(path, currentVertex, this._distance, approxFractionalJoinNormal, lineTurnsLeft);
+                        }
+                    }
+
+                    // Start next segment
+                    if (nextVertex) {
+                        this.addCurrentVertex(path, currentVertex, this._distance, nextNormal, -offsetA, -offsetB, false);
+                    }
+
+                } else if (currentJoin === 'butt') {
+                    if (!startOfLine) {
+                        // Close previous segment with a butt
+                        this.addCurrentVertex(path, currentVertex, this._distance, prevNormal, 0, 0, false);
+                    }
+
+                    // Start next segment with a butt
+                    if (nextVertex) {
+                        this.addCurrentVertex(path, currentVertex, this._distance, nextNormal, 0, 0, false);
+                    }
+
+                } else if (currentJoin === 'square') {
+
+                    if (!startOfLine) {
+                        // Close previous segment with a square cap
+                        this.addCurrentVertex(path, currentVertex, this._distance, prevNormal, 1, 1, false);
+
+                        // The segment is done. Unset vertices to disconnect segments.
+                        this.e1 = this.e2 = -1;
+                    }
+
+                    // Start next segment
+                    if (nextVertex) {
+                        this.addCurrentVertex(path, currentVertex, this._distance, nextNormal, -1, -1, false);
+                    }
+
+                } else if (currentJoin === 'round') {
+
+                    if (!startOfLine) {
+                        // Close previous segment with butt
+                        this.addCurrentVertex(path, currentVertex, this._distance, prevNormal, 0, 0, false);
+
+                        // Add round cap or linejoin at end of segment
+                        this.addCurrentVertex(path, currentVertex, this._distance, prevNormal, 1, 1, true);
+
+                        // The segment is done. Unset vertices to disconnect segments.
+                        this.e1 = this.e2 = -1;
+                    }
+
+
+                    // Start next segment with a butt
+                    if (nextVertex) {
+                        // Add round cap before first segment
+                        this.addCurrentVertex(path, currentVertex, this._distance, nextNormal, -1, -1, true);
+
+                        this.addCurrentVertex(path, currentVertex, this._distance, nextNormal, 0, 0, false);
+                    }
+                }
+
+                if (isSharpCorner && i < len - 1) {
+                    var nextSegmentLength = currentVertex.dist(nextVertex);
+                    if (nextSegmentLength > 2 * sharpCornerOffset) {
+                        var newCurrentVertex = currentVertex.add(nextVertex.sub(currentVertex).mulSelf(sharpCornerOffset / nextSegmentLength).roundSelf());
+                        this._distance += newCurrentVertex.dist(currentVertex);
+                        this.addCurrentVertex(path, newCurrentVertex, this._distance, nextNormal.mult(1), 0, 0, false);
+                        currentVertex = newCurrentVertex;
+                    }
+                }
+
+                startOfLine = false;
             }
 
-            if (loop) {
-                var v0 = this._vget(offset);
-                var v1 = this._vget(offset + 1);
-                // Loop it
-                this._vset(v0.x, v0.y);
-                this._vset(v1.x, v1.y);
-            } else {
-                // Add cap
-                var dPos = p1.sub(p0);
-                dPos.normalizeSelf();
-
-                var dx = dPos.x;
-                var dy = dPos.y;
-
-                if (lineCap === LineCap.BUTT) 
-                    this._buttCap(p1, dx, dy, w, 0);
-                else if (lineCap === LineCap.BUTT || lineCap === LineCap.SQUARE) 
-                    this._buttCap(p1, dx, dy, w, w);
-                else if (lineCap === LineCap.ROUND) 
-                    this._roundCapEnd(p1, dx, dy, w, ncap);
-            }
-
-            path.nstroke = this._vertsOffset - path.strokeOffset;
+            path.nIndices = this._indicesOffset - indicesOffset;
+            path.nverts = this._vertsOffset - vertsOffset;
         }
     },
 
-    _expandFill: function () {
-        // this._calculateJoins(0, LineJoin.MITER, 2.4);
+    addCurrentVertex: function (path, currentVertex, distance, normal, endLeft, endRight, round) {
+        var tx = round ? 1 : 0;
+        var extrude;
 
-        var paths = this._paths;
+        extrude = normal.clone();
+        if (endLeft) extrude.subSelf(normal.perp().mulSelf(endLeft));
+        this.e3 = this.addLineVertex(path, currentVertex, extrude, tx, 0, endLeft, distance);
+        if (this.e1 >= 0 && this.e2 >= 0) {
+            this.addIndices(this.e1, this.e2, this.e3);
+        }
+        this.e1 = this.e2;
+        this.e2 = this.e3;
 
-        // Calculate max vertex usage.
-        var cverts = 0;
-        for (var i = this._pathOffset, l = this._pathLength; i < l; i++) {
-            var path = paths[i];
-            var pointsLength = path.points.length;
+        extrude = normal.mult(-1);
+        if (endRight) extrude.subSelf(normal.perp().mulSelf(endRight));
+        this.e3 = this.addLineVertex(currentVertex, extrude, tx, 1, -endRight, distance);
+        if (this.e1 >= 0 && this.e2 >= 0) {
+            this.addIndices(this.e1, this.e2, this.e3);
+        }
+        this.e1 = this.e2;
+        this.e2 = this.e3;
 
-            cverts += pointsLength;
+        // There is a maximum "distance along the line" that we can store in the buffers.
+        // When we get close to the distance, reset it to zero and add the vertex again with
+        // a distance of zero. The max distance is determined by the number of bits we allocate
+        // to `linesofar`.
+        if (distance > MAX_LINE_DISTANCE / 2) {
+            this._distance = 0;
+            this.addCurrentVertex(path, currentVertex, this._distance, normal, endLeft, endRight, round);
+        }
+    },
+
+    /**
+     * Add a single new vertex and a triangle using two previous vertices.
+     * This adds a pie slice triangle near a join to simulate round joins
+     *
+     * @param {Object} currentVertex the line vertex to add buffer vertices for
+     * @param {number} distance the distance from the beggining of the line to the vertex
+     * @param {Object} extrude the offset of the new vertex from the currentVertex
+     * @param {boolean} whether the line is turning left or right at this angle
+     * @private
+     */
+    addPieSliceVertex: function (path, currentVertex, distance, extrude, lineTurnsLeft) {
+        var ty = lineTurnsLeft ? 1 : 0;
+        extrude = extrude.mult(lineTurnsLeft ? -1 : 1);
+
+        this.e3 = this.addLineVertex(currentVertex, extrude, 0, ty, 0, distance);
+
+        if (this.e1 >= 0 && this.e2 >= 0) {
+            this.addIndices(this.e1, this.e2, this.e3);
         }
 
-        this._allocVerts(cverts);
+        if (lineTurnsLeft) {
+            this.e2 = this.e3;
+        } else {
+            this.e1 = this.e3;
+        }
+    },
 
-        for (var i = this._pathOffset, l = this._pathLength; i < l; i++) {
-            var path = paths[i];
-            path.fillColor = this._fillColor;
+    addLineVertex: function (path, point, extrude, tx, ty, dir, linesofar) {
+        var buffer = this._vertsBuffer;
 
-            var pts = path.points;
-            var pointsLength = pts.length;
 
-            if (pointsLength === 0) {
-                continue;
-            }
+        return vertexBuffer.emplaceBack(
+                // a_pos
+                (point.x << 1) | tx,
+                (point.y << 1) | ty,
+                // a_data
+                // add 128 to store an byte in an unsigned byte
+                Math.round(EXTRUDE_SCALE * extrude.x) + 128,
+                Math.round(EXTRUDE_SCALE * extrude.y) + 128,
+                // Encode the -1/0/1 direction value into the first two bits of .z of a_data.
+                // Combine it with the lower 6 bits of `linesofar` (shifted by 2 bites to make
+                // room for the direction value). The upper 8 bits of `linesofar` are placed in
+                // the `w` component. `linesofar` is scaled down by `LINE_DISTANCE_SCALE` so that
+                // we can store longer distances while sacrificing precision.
+                ((dir === 0 ? 0 : (dir < 0 ? -1 : 1)) + 1) | (((linesofar * LINE_DISTANCE_SCALE) & 0x3F) << 2),
+                (linesofar * LINE_DISTANCE_SCALE) >> 6);
+    },
 
-            // Calculate shape vertices.
-            var offset = this._vertsOffset;
-            path.fillOffset = offset;
+    addIndices: function (path, i1, i2, i3) {
+        this._allocIndices(3);
 
-            for (var j = 0; j < pointsLength; ++j) {
-                this._vset(pts[j].x, pts[j].y, 0.5, 1);
-            }
+        var indices = this._indicesBuffer;
+        var indicesOffset = this._indicesOffset;
 
-            path.nfill = this._vertsOffset - offset;
+        indices[indicesOffset    ] = i1;
+        indices[indicesOffset + 1] = i2;
+        indices[indicesOffset + 2] = i3;
 
-            if (path.complex) {
-                var data = this._vertsBuffer.slice(offset * 2, this._vertsOffset * 2);
-                var newIndices = Earcut(data, null, 2);
+        this._indicesOffset += 3;
+        this._indicesDirty = true;
 
-                if (!newIndices) {
-                    continue;
-                }
+    },
 
-                var indicesLength = newIndices.length;
+    // _expandStroke: function () {
+    //     var w = this.lineWidth * 0.5,
+    //         lineCap = this.lineCap,
+    //         lineJoin = this.lineJoin,
+    //         miterLimit = this.miterLimit;
 
-                this._allocIndices(indicesLength);
-                var indices = this._indicesBuffer;
-                var indicesOffset = this._indicesOffset;
+    //     var ncap = this._curveDivs(w, PI, this._tessTol);
+    //     var paths = this._paths;
+
+    //     this._calculateJoins(w, lineJoin, miterLimit);
+
+    //     // Calculate max vertex usage.
+    //     var cverts = 0;
+    //     for (var i = this._pathOffset, l = this._pathLength; i < l; i++) {
+    //         var path = paths[i];
+    //         var pointsLength = path.points.length;
+
+    //         if (lineJoin === LineJoin.ROUND) cverts += (pointsLength + path.nbevel * (ncap + 2) + 1) * 2; // plus one for loop
+    //         else cverts += (pointsLength + path.nbevel * 5 + 1) * 2; // plus one for loop
+
+    //         if (!path.closed) {
+    //             // space for caps
+    //             if (lineCap === LineCap.ROUND) {
+    //                 cverts += (ncap * 2 + 2) * 2;
+    //             } else {
+    //                 cverts += (3 + 3) * 2;
+    //             }
+    //         }
+    //     }
+
+    //     this._allocVerts(cverts);
+
+    //     for (var i = this._pathOffset, l = this._pathLength; i < l; i++) {
+    //         var path = paths[i];
+    //         var pts = path.points;
+    //         var pointsLength = path.points.length;
+
+    //         path.strokeColor = this._strokeColor;
+
+    //         var p0, p1;
+    //         var s, e, loop;
+
+    //         loop = path.closed;
+    //         var offset = path.strokeOffset = this._vertsOffset;
+
+    //         if (loop) {
+    //             // Looping
+    //             p0 = pts[pointsLength - 1];
+    //             p1 = pts[0];
+    //             s = 0;
+    //             e = pointsLength;
+    //         } else {
+    //             // Add cap
+    //             p0 = pts[0];
+    //             p1 = pts[1];
+    //             s = 1;
+    //             e = pointsLength - 1;
+    //         }
+
+    //         if (!loop) {
+    //             // Add cap
+    //             var dPos = p1.sub(p0);
+    //             dPos.normalizeSelf();
+
+    //             var dx = dPos.x;
+    //             var dy = dPos.y;
+
+    //             if (lineCap === LineCap.BUTT) 
+    //                 this._buttCap(p0, dx, dy, w, 0);
+    //             else if (lineCap === LineCap.SQUARE) 
+    //                 this._buttCap(p0, dx, dy, w, w);
+    //             else if (lineCap === LineCap.ROUND) 
+    //                 this._roundCapStart(p0, dx, dy, w, ncap);
+    //         }
+
+    //         for (var j = s; j < e; ++j) {
+    //             if ((p1.flags & (PointFlags.PT_BEVEL | PointFlags.PT_INNERBEVEL)) !== 0) {
+    //                 if (lineJoin === LineJoin.ROUND || p1.flags & PointFlags.PT_ROUND) {
+    //                     this._roundJoin(p0, p1, w, w, ncap);
+    //                 } else {
+    //                     this._bevelJoin(p0, p1, w, w);
+    //                 }
+    //             } else {
+    //                 this._vset(p1.x + p1.dmx * w, p1.y + p1.dmy * w);
+    //                 this._vset(p1.x - p1.dmx * w, p1.y - p1.dmy * w);
+    //             }
+    //             p0 = p1;
+    //             p1 = pts[j + 1];
+    //         }
+
+    //         if (loop) {
+    //             var v0 = this._vget(offset);
+    //             var v1 = this._vget(offset + 1);
+    //             // Loop it
+    //             this._vset(v0.x, v0.y);
+    //             this._vset(v1.x, v1.y);
+    //         } else {
+    //             // Add cap
+    //             var dPos = p1.sub(p0);
+    //             dPos.normalizeSelf();
+
+    //             var dx = dPos.x;
+    //             var dy = dPos.y;
+
+    //             if (lineCap === LineCap.BUTT) 
+    //                 this._buttCap(p1, dx, dy, w, 0);
+    //             else if (lineCap === LineCap.BUTT || lineCap === LineCap.SQUARE) 
+    //                 this._buttCap(p1, dx, dy, w, w);
+    //             else if (lineCap === LineCap.ROUND) 
+    //                 this._roundCapEnd(p1, dx, dy, w, ncap);
+    //         }
+
+    //         path.nstroke = this._vertsOffset - path.strokeOffset;
+    //     }
+    // },
+
+    // _expandFill: function () {
+    //     // this._calculateJoins(0, LineJoin.MITER, 2.4);
+
+    //     var paths = this._paths;
+
+    //     // Calculate max vertex usage.
+    //     var cverts = 0;
+    //     for (var i = this._pathOffset, l = this._pathLength; i < l; i++) {
+    //         var path = paths[i];
+    //         var pointsLength = path.points.length;
+
+    //         cverts += pointsLength;
+    //     }
+
+    //     this._allocVerts(cverts);
+
+    //     for (var i = this._pathOffset, l = this._pathLength; i < l; i++) {
+    //         var path = paths[i];
+    //         path.fillColor = this._fillColor;
+
+    //         var pts = path.points;
+    //         var pointsLength = pts.length;
+
+    //         if (pointsLength === 0) {
+    //             continue;
+    //         }
+
+    //         // Calculate shape vertices.
+    //         var offset = this._vertsOffset;
+    //         path.fillOffset = offset;
+
+    //         for (var j = 0; j < pointsLength; ++j) {
+    //             this._vset(pts[j].x, pts[j].y, 0.5, 1);
+    //         }
+
+    //         path.nfill = this._vertsOffset - offset;
+
+    //         if (path.complex) {
+    //             var data = this._vertsBuffer.slice(offset * 2, this._vertsOffset * 2);
+    //             var newIndices = Earcut(data, null, 2);
+
+    //             if (!newIndices) {
+    //                 continue;
+    //             }
+
+    //             var indicesLength = newIndices.length;
+
+    //             this._allocIndices(indicesLength);
+    //             var indices = this._indicesBuffer;
+    //             var indicesOffset = this._indicesOffset;
                 
-                path.indicesOffset = indicesOffset;
-                path.nIndices = indicesLength;
+    //             path.indicesOffset = indicesOffset;
+    //             path.nIndices = indicesLength;
 
-                for (var j = 0, l3 = indicesLength; j < l3; j++) {
-                    indices[indicesOffset + j] = newIndices[j] + offset;
-                }
+    //             for (var j = 0, l3 = indicesLength; j < l3; j++) {
+    //                 indices[indicesOffset + j] = newIndices[j] + offset;
+    //             }
 
-                this._indicesOffset += indicesLength;
-                this._indicesDirty = true;
-            }
-        }
-    },
+    //             this._indicesOffset += indicesLength;
+    //             this._indicesDirty = true;
+    //         }
+    //     }
+    // },
 
     _curveDivs: function (r, arc, tol) {
         var da = acos(r / (r + tol)) * 2.0;
         return max(2, ceil(arc / da));
     },
 
-    _calculateJoins: function (w, lineJoin, miterLimit) {
-        var iw = 0.0;
+    // _calculateJoins: function (w, lineJoin, miterLimit) {
+    //     var iw = 0.0;
 
-        if (w > 0.0) {
-            iw = 1 / w;
-        }
+    //     if (w > 0.0) {
+    //         iw = 1 / w;
+    //     }
 
-        // Calculate which joins needs extra vertices to append, and gather vertex count.
-        var paths = this._paths;
+    //     // Calculate which joins needs extra vertices to append, and gather vertex count.
+    //     var paths = this._paths;
 
-        for (var i = this._pathOffset, l = this._pathLength; i < l; i++) {
-            var path = paths[i];
+    //     for (var i = this._pathOffset, l = this._pathLength; i < l; i++) {
+    //         var path = paths[i];
 
-            var pts = path.points;
-            var ptsLength = pts.length;
-            var p0 = pts[ptsLength - 1];
-            var p1 = pts[0];
-            var nleft = 0;
+    //         var pts = path.points;
+    //         var ptsLength = pts.length;
+    //         var p0 = pts[ptsLength - 1];
+    //         var p1 = pts[0];
+    //         var nleft = 0;
 
-            path.nbevel = 0;
+    //         path.nbevel = 0;
 
-            for (var j = 0; j < ptsLength; j++) {
-                var dmr2, cross, limit;
+    //         for (var j = 0; j < ptsLength; j++) {
+    //             var dmr2, cross, limit;
 
-                var dlx0 = p0.dy;
-                var dly0 = -p0.dx;
-                var dlx1 = p1.dy;
-                var dly1 = -p1.dx;
+    //             var dlx0 = p0.dy;
+    //             var dly0 = -p0.dx;
+    //             var dlx1 = p1.dy;
+    //             var dly1 = -p1.dx;
 
-                // Calculate extrusions
-                p1.dmx = (dlx0 + dlx1) * 0.5;
-                p1.dmy = (dly0 + dly1) * 0.5;
-                dmr2 = p1.dmx * p1.dmx + p1.dmy * p1.dmy;
-                if (dmr2 > 0.000001) {
-                    var scale = 1 / dmr2;
-                    if (scale > 600) {
-                        scale = 600;
-                    }
-                    p1.dmx *= scale;
-                    p1.dmy *= scale;
-                }
+    //             // Calculate extrusions
+    //             p1.dmx = (dlx0 + dlx1) * 0.5;
+    //             p1.dmy = (dly0 + dly1) * 0.5;
+    //             dmr2 = p1.dmx * p1.dmx + p1.dmy * p1.dmy;
+    //             if (dmr2 > 0.000001) {
+    //                 var scale = 1 / dmr2;
+    //                 if (scale > 600) {
+    //                     scale = 600;
+    //                 }
+    //                 p1.dmx *= scale;
+    //                 p1.dmy *= scale;
+    //             }
 
-                // Keep track of left turns.
-                cross = p1.dx * p0.dy - p0.dx * p1.dy;
-                if (cross > 0) {
-                    nleft++;
-                    p1.flags |= PointFlags.PT_LEFT;
-                }
+    //             // Keep track of left turns.
+    //             cross = p1.dx * p0.dy - p0.dx * p1.dy;
+    //             if (cross > 0) {
+    //                 nleft++;
+    //                 p1.flags |= PointFlags.PT_LEFT;
+    //             }
 
-                // Calculate if we should use bevel or miter for inner join.
-                limit = max(11, min(p0.len, p1.len) * iw);
-                if (dmr2 * limit * limit < 1) {
-                    p1.flags |= PointFlags.PT_INNERBEVEL;
-                }
+    //             // Calculate if we should use bevel or miter for inner join.
+    //             limit = max(11, min(p0.len, p1.len) * iw);
+    //             if (dmr2 * limit * limit < 1) {
+    //                 p1.flags |= PointFlags.PT_INNERBEVEL;
+    //             }
 
-                // Check to see if the corner needs to be beveled.
-                if (p1.flags & PointFlags.PT_CORNER) {
-                    if (dmr2 * miterLimit * miterLimit < 1 || lineJoin === LineJoin.BEVEL || lineJoin === LineJoin.ROUND) {
-                        p1.flags |= PointFlags.PT_BEVEL;
-                    }
-                }
+    //             // Check to see if the corner needs to be beveled.
+    //             if (p1.flags & PointFlags.PT_CORNER) {
+    //                 if (dmr2 * miterLimit * miterLimit < 1 || lineJoin === LineJoin.BEVEL || lineJoin === LineJoin.ROUND) {
+    //                     p1.flags |= PointFlags.PT_BEVEL;
+    //                 }
+    //             }
 
-                if ((p1.flags & (PointFlags.PT_BEVEL | PointFlags.PT_INNERBEVEL)) !== 0) {
-                    path.nbevel++;
-                }
+    //             if ((p1.flags & (PointFlags.PT_BEVEL | PointFlags.PT_INNERBEVEL)) !== 0) {
+    //                 path.nbevel++;
+    //             }
 
-                p0 = p1;
-                p1 = pts[j + 1];
-            }
-        }
-    },
+    //             p0 = p1;
+    //             p1 = pts[j + 1];
+    //         }
+    //     }
+    // },
 
-    _vset: function (x, y) {
-        var offset = this._vertsOffset * VERTS_FLOAT_LENGTH;
-        var buffer = this._vertsBuffer;
+    // _vset: function (x, y) {
+    //     var offset = this._vertsOffset * VERTS_BYTE_LENGTH;
+    //     var buffer = this._vertsBuffer;
 
-        buffer[offset] = x;
-        buffer[offset + 1] = y;
+    //     buffer[offset] = x;
+    //     buffer[offset + 1] = y;
 
-        this._vertsOffset++;
-    },
+    //     this._vertsOffset++;
+    // },
 
-    _vget: function (index) {
-        var buffer = this._vertsBuffer;
-        var offset = index * VERTS_FLOAT_LENGTH;
-        return {
-            x: buffer[offset],
-            y: buffer[offset + 1]
-        };
-    },
+    // _vget: function (index) {
+    //     var buffer = this._vertsBuffer;
+    //     var offset = index * VERTS_BYTE_LENGTH;
+    //     return {
+    //         x: buffer[offset],
+    //         y: buffer[offset + 1]
+    //     };
+    // },
 
     //
-    _chooseBevel: function (bevel, p0, p1, w, x0, y0, x1, y1) {
-        var x = p1.x;
-        var y = p1.y;
+    // _chooseBevel: function (bevel, p0, p1, w, x0, y0, x1, y1) {
+    //     var x = p1.x;
+    //     var y = p1.y;
 
-        if (bevel !== 0) {
-            x0 = x + p0.dy * w;
-            y0 = y - p0.dx * w;
-            x1 = x + p1.dy * w;
-            y1 = y - p1.dx * w;
-        } else {
-            x0 = x + p1.dmx * w;
-            y0 = y + p1.dmy * w;
-            x1 = x + p1.dmx * w;
-            y1 = y + p1.dmy * w;
-        }
+    //     if (bevel !== 0) {
+    //         x0 = x + p0.dy * w;
+    //         y0 = y - p0.dx * w;
+    //         x1 = x + p1.dy * w;
+    //         y1 = y - p1.dx * w;
+    //     } else {
+    //         x0 = x + p1.dmx * w;
+    //         y0 = y + p1.dmy * w;
+    //         x1 = x + p1.dmx * w;
+    //         y1 = y + p1.dmy * w;
+    //     }
 
-        return [x0, y0, x1, y1];
-    },
+    //     return [x0, y0, x1, y1];
+    // },
 
-    _buttCap: function (p, dx, dy, w, d) {
-        var px = p.x - dx * d;
-        var py = p.y - dy * d;
-        var dlx = dy;
-        var dly = -dx;
+    // _buttCap: function (p, dx, dy, w, d) {
+    //     var px = p.x - dx * d;
+    //     var py = p.y - dy * d;
+    //     var dlx = dy;
+    //     var dly = -dx;
 
-        this._vset(px + dlx * w, py + dly * w);
-        this._vset(px - dlx * w, py - dly * w);
-    },
+    //     this._vset(px + dlx * w, py + dly * w);
+    //     this._vset(px - dlx * w, py - dly * w);
+    // },
 
-    _roundCapStart: function (p, dx, dy, w, ncap) {
-        var px = p.x;
-        var py = p.y;
-        var dlx = dy;
-        var dly = -dx;
+    // _roundCapStart: function (p, dx, dy, w, ncap) {
+    //     var px = p.x;
+    //     var py = p.y;
+    //     var dlx = dy;
+    //     var dly = -dx;
 
-        for (var i = 0; i < ncap; i++) {
-            var a = i / (ncap - 1) * PI;
-            var ax = cos(a) * w,
-                ay = sin(a) * w;
-            this._vset(px - dlx * ax - dx * ay, py - dly * ax - dy * ay);
-            this._vset(px, py);
-        }
-        this._vset(px + dlx * w, py + dly * w);
-        this._vset(px - dlx * w, py - dly * w);
-    },
+    //     for (var i = 0; i < ncap; i++) {
+    //         var a = i / (ncap - 1) * PI;
+    //         var ax = cos(a) * w,
+    //             ay = sin(a) * w;
+    //         this._vset(px - dlx * ax - dx * ay, py - dly * ax - dy * ay);
+    //         this._vset(px, py);
+    //     }
+    //     this._vset(px + dlx * w, py + dly * w);
+    //     this._vset(px - dlx * w, py - dly * w);
+    // },
 
-    _roundCapEnd: function (p, dx, dy, w, ncap) {
-        var px = p.x;
-        var py = p.y;
-        var dlx = dy;
-        var dly = -dx;
+    // _roundCapEnd: function (p, dx, dy, w, ncap) {
+    //     var px = p.x;
+    //     var py = p.y;
+    //     var dlx = dy;
+    //     var dly = -dx;
 
-        this._vset(px + dlx * w, py + dly * w);
-        this._vset(px - dlx * w, py - dly * w);
-        for (var i = 0; i < ncap; i++) {
-            var a = i / (ncap - 1) * PI;
-            var ax = cos(a) * w,
-                ay = sin(a) * w;
-            this._vset(px, py);
-            this._vset(px - dlx * ax + dx * ay, py - dly * ax + dy * ay);
-        }
-    },
+    //     this._vset(px + dlx * w, py + dly * w);
+    //     this._vset(px - dlx * w, py - dly * w);
+    //     for (var i = 0; i < ncap; i++) {
+    //         var a = i / (ncap - 1) * PI;
+    //         var ax = cos(a) * w,
+    //             ay = sin(a) * w;
+    //         this._vset(px, py);
+    //         this._vset(px - dlx * ax + dx * ay, py - dly * ax + dy * ay);
+    //     }
+    // },
 
-    _roundJoin: function (p0, p1, lw, rw, ncap) {
-        var dlx0 = p0.dy;
-        var dly0 = -p0.dx;
-        var dlx1 = p1.dy;
-        var dly1 = -p1.dx;
+    // _roundJoin: function (p0, p1, lw, rw, ncap) {
+    //     var dlx0 = p0.dy;
+    //     var dly0 = -p0.dx;
+    //     var dlx1 = p1.dy;
+    //     var dly1 = -p1.dx;
 
-        var p1x = p1.x;
-        var p1y = p1.y;
+    //     var p1x = p1.x;
+    //     var p1y = p1.y;
 
-        if ((p1.flags & PointFlags.PT_LEFT) !== 0) {
-            var out = this._chooseBevel(p1.flags & PointFlags.PT_INNERBEVEL, p0, p1, lw);
-            var lx0 = out[0];
-            var ly0 = out[1];
-            var lx1 = out[2];
-            var ly1 = out[3];
+    //     if ((p1.flags & PointFlags.PT_LEFT) !== 0) {
+    //         var out = this._chooseBevel(p1.flags & PointFlags.PT_INNERBEVEL, p0, p1, lw);
+    //         var lx0 = out[0];
+    //         var ly0 = out[1];
+    //         var lx1 = out[2];
+    //         var ly1 = out[3];
 
-            var a0 = atan2(-dly0, -dlx0);
-            var a1 = atan2(-dly1, -dlx1);
-            if (a1 > a0) a1 -= PI * 2;
+    //         var a0 = atan2(-dly0, -dlx0);
+    //         var a1 = atan2(-dly1, -dlx1);
+    //         if (a1 > a0) a1 -= PI * 2;
 
-            this._vset(lx0, ly0);
-            this._vset(p1x - dlx0 * rw, p1.y - dly0 * rw);
+    //         this._vset(lx0, ly0);
+    //         this._vset(p1x - dlx0 * rw, p1.y - dly0 * rw);
 
-            var n = clamp(ceil((a0 - a1) / PI) * ncap, 2, ncap);
-            for (var i = 0; i < n; i++) {
-                var u = i / (n - 1);
-                var a = a0 + u * (a1 - a0);
-                var rx = p1x + cos(a) * rw;
-                var ry = p1y + sin(a) * rw;
-                this._vset(p1x, p1y);
-                this._vset(rx, ry);
-            }
+    //         var n = clamp(ceil((a0 - a1) / PI) * ncap, 2, ncap);
+    //         for (var i = 0; i < n; i++) {
+    //             var u = i / (n - 1);
+    //             var a = a0 + u * (a1 - a0);
+    //             var rx = p1x + cos(a) * rw;
+    //             var ry = p1y + sin(a) * rw;
+    //             this._vset(p1x, p1y);
+    //             this._vset(rx, ry);
+    //         }
 
-            this._vset(lx1, ly1);
-            this._vset(p1x - dlx1 * rw, p1y - dly1 * rw);
-        } else {
-            var out = this._chooseBevel(p1.flags & PointFlags.PT_INNERBEVEL, p0, p1, -rw);
-            var rx0 = out[0];
-            var ry0 = out[1];
-            var rx1 = out[2];
-            var ry1 = out[3];
+    //         this._vset(lx1, ly1);
+    //         this._vset(p1x - dlx1 * rw, p1y - dly1 * rw);
+    //     } else {
+    //         var out = this._chooseBevel(p1.flags & PointFlags.PT_INNERBEVEL, p0, p1, -rw);
+    //         var rx0 = out[0];
+    //         var ry0 = out[1];
+    //         var rx1 = out[2];
+    //         var ry1 = out[3];
 
-            var a0 = atan2(dly0, dlx0);
-            var a1 = atan2(dly1, dlx1);
-            if (a1 < a0) a1 += PI * 2;
+    //         var a0 = atan2(dly0, dlx0);
+    //         var a1 = atan2(dly1, dlx1);
+    //         if (a1 < a0) a1 += PI * 2;
 
-            this._vset(p1x + dlx0 * rw, p1y + dly0 * rw);
-            this._vset(rx0, ry0);
+    //         this._vset(p1x + dlx0 * rw, p1y + dly0 * rw);
+    //         this._vset(rx0, ry0);
 
-            var n = clamp(ceil((a1 - a0) / PI) * ncap, 2, ncap);
-            for (var i = 0; i < n; i++) {
-                var u = i / (n - 1);
-                var a = a0 + u * (a1 - a0);
-                var lx = p1x + cos(a) * lw;
-                var ly = p1y + sin(a) * lw;
-                this._vset(lx, ly);
-                this._vset(p1x, p1y);
-            }
+    //         var n = clamp(ceil((a1 - a0) / PI) * ncap, 2, ncap);
+    //         for (var i = 0; i < n; i++) {
+    //             var u = i / (n - 1);
+    //             var a = a0 + u * (a1 - a0);
+    //             var lx = p1x + cos(a) * lw;
+    //             var ly = p1y + sin(a) * lw;
+    //             this._vset(lx, ly);
+    //             this._vset(p1x, p1y);
+    //         }
 
-            this._vset(p1x + dlx1 * rw, p1y + dly1 * rw);
-            this._vset(rx1, ry1);
-        }
-    },
+    //         this._vset(p1x + dlx1 * rw, p1y + dly1 * rw);
+    //         this._vset(rx1, ry1);
+    //     }
+    // },
 
-    _bevelJoin: function (p0, p1, lw, rw) {
-        var rx0, ry0, rx1, ry1;
-        var lx0, ly0, lx1, ly1;
-        var dlx0 = p0.dy;
-        var dly0 = -p0.dx;
-        var dlx1 = p1.dy;
-        var dly1 = -p1.dx;
+    // _bevelJoin: function (p0, p1, lw, rw) {
+    //     var rx0, ry0, rx1, ry1;
+    //     var lx0, ly0, lx1, ly1;
+    //     var dlx0 = p0.dy;
+    //     var dly0 = -p0.dx;
+    //     var dlx1 = p1.dy;
+    //     var dly1 = -p1.dx;
 
-        if (p1.flags & PointFlags.PT_LEFT) {
-            var out = this._chooseBevel(p1.flags & PointFlags.PT_INNERBEVEL, p0, p1, lw, lx0, ly0, lx1, ly1);
-            lx0 = out[0];
-            ly0 = out[1];
-            lx1 = out[2];
-            ly1 = out[3];
+    //     if (p1.flags & PointFlags.PT_LEFT) {
+    //         var out = this._chooseBevel(p1.flags & PointFlags.PT_INNERBEVEL, p0, p1, lw, lx0, ly0, lx1, ly1);
+    //         lx0 = out[0];
+    //         ly0 = out[1];
+    //         lx1 = out[2];
+    //         ly1 = out[3];
 
-            this._vset(lx0, ly0);
-            this._vset(p1.x - dlx0 * rw, p1.y - dly0 * rw);
+    //         this._vset(lx0, ly0);
+    //         this._vset(p1.x - dlx0 * rw, p1.y - dly0 * rw);
 
-            if (p1.flags & PointFlags.PT_BEVEL) {
-                this._vset(lx0, ly0);
-                this._vset(p1.x - dlx0 * rw, p1.y - dly0 * rw);
+    //         if (p1.flags & PointFlags.PT_BEVEL) {
+    //             this._vset(lx0, ly0);
+    //             this._vset(p1.x - dlx0 * rw, p1.y - dly0 * rw);
 
-                this._vset(lx1, ly1);
-                this._vset(p1.x - dlx1 * rw, p1.y - dly1 * rw);
-            } else {
-                rx0 = p1.x - p1.dmx * rw;
-                ry0 = p1.y - p1.dmy * rw;
+    //             this._vset(lx1, ly1);
+    //             this._vset(p1.x - dlx1 * rw, p1.y - dly1 * rw);
+    //         } else {
+    //             rx0 = p1.x - p1.dmx * rw;
+    //             ry0 = p1.y - p1.dmy * rw;
 
-                this._vset(p1.x, p1.y);
-                this._vset(p1.x - dlx0 * rw, p1.y - dly0 * rw);
+    //             this._vset(p1.x, p1.y);
+    //             this._vset(p1.x - dlx0 * rw, p1.y - dly0 * rw);
 
-                this._vset(rx0, ry0);
-                this._vset(rx0, ry0);
+    //             this._vset(rx0, ry0);
+    //             this._vset(rx0, ry0);
 
-                this._vset(p1.x, p1.y);
-                this._vset(p1.x - dlx1 * rw, p1.y - dly1 * rw);
-            }
+    //             this._vset(p1.x, p1.y);
+    //             this._vset(p1.x - dlx1 * rw, p1.y - dly1 * rw);
+    //         }
 
-            this._vset(lx1, ly1);
-            this._vset(p1.x - dlx1 * rw, p1.y - dly1 * rw);
-        } else {
-            var out = this._chooseBevel(p1.flags & PointFlags.PT_INNERBEVEL, p0, p1, -rw, rx0, ry0, rx1, ry1);
-            rx0 = out[0];
-            ry0 = out[1];
-            rx1 = out[2];
-            ry1 = out[3];
+    //         this._vset(lx1, ly1);
+    //         this._vset(p1.x - dlx1 * rw, p1.y - dly1 * rw);
+    //     } else {
+    //         var out = this._chooseBevel(p1.flags & PointFlags.PT_INNERBEVEL, p0, p1, -rw, rx0, ry0, rx1, ry1);
+    //         rx0 = out[0];
+    //         ry0 = out[1];
+    //         rx1 = out[2];
+    //         ry1 = out[3];
 
-            this._vset(p1.x + dlx0 * lw, p1.y + dly0 * lw);
-            this._vset(rx0, ry0);
+    //         this._vset(p1.x + dlx0 * lw, p1.y + dly0 * lw);
+    //         this._vset(rx0, ry0);
 
-            if (p1.flags & PointFlags.PT_BEVEL) {
-                this._vset(p1.x + dlx0 * lw, p1.y + dly0 * lw);
-                this._vset(rx0, ry0);
+    //         if (p1.flags & PointFlags.PT_BEVEL) {
+    //             this._vset(p1.x + dlx0 * lw, p1.y + dly0 * lw);
+    //             this._vset(rx0, ry0);
 
-                this._vset(p1.x + dlx1 * lw, p1.y + dly1 * lw);
-                this._vset(rx1, ry1);
-            } else {
-                lx0 = p1.x + p1.dmx * lw;
-                ly0 = p1.y + p1.dmy * lw;
+    //             this._vset(p1.x + dlx1 * lw, p1.y + dly1 * lw);
+    //             this._vset(rx1, ry1);
+    //         } else {
+    //             lx0 = p1.x + p1.dmx * lw;
+    //             ly0 = p1.y + p1.dmy * lw;
 
-                this._vset(p1.x + dlx0 * lw, p1.y + dly0 * lw);
-                this._vset(p1.x, p1.y);
+    //             this._vset(p1.x + dlx0 * lw, p1.y + dly0 * lw);
+    //             this._vset(p1.x, p1.y);
 
-                this._vset(lx0, ly0);
-                this._vset(lx0, ly0);
+    //             this._vset(lx0, ly0);
+    //             this._vset(lx0, ly0);
 
-                this._vset(p1.x + dlx1 * lw, p1.y + dly1 * lw);
-                this._vset(p1.x, p1.y);
-            }
+    //             this._vset(p1.x + dlx1 * lw, p1.y + dly1 * lw);
+    //             this._vset(p1.x, p1.y);
+    //         }
 
-            this._vset(p1.x + dlx1 * lw, p1.y + dly1 * lw);
-            this._vset(rx1, ry1);
-        }
-    },
+    //         this._vset(p1.x + dlx1 * lw, p1.y + dly1 * lw);
+    //         this._vset(rx1, ry1);
+    //     }
+    // },
 
     _tesselateBezier: function (x1, y1, x2, y2, x3, y3, x4, y4, level, type) {
         var x12, y12, x23, y23, x34, y34, x123, y123, x234, y234, x1234, y1234;

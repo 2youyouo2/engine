@@ -517,7 +517,35 @@ JS.mixin(Vec2.prototype, {
         this.x = cos * x - sin * this.y;
         this.y = sin * x + cos * this.y;
         return this;
-    }
+    },
+
+    round: function (out) {
+        out = out || new Vec2();
+        out.x = Math.round(out.x);
+        out.y = Math.round(out.y);
+        return out;
+    },
+
+    roundSelf: function () {
+        this.x = Math.round(this.x);
+        this.y = Math.round(this.y);
+        return this;
+    },
+
+    perp: function (out) {
+        out = out || new Vec2();
+        var y = out.y;
+        out.y = out.x;
+        out.x = -y;
+        return out;
+    },
+
+    perpSelf: function () {
+        var y = this.y;
+        this.y = this.x;
+        this.x = -y;
+        return this;
+    },
 
     //_serialize: function () {
     //    return [this.x, this.y];
