@@ -368,6 +368,8 @@ var Label = cc.Class({
         }
 
         var sgNode = this._sgNode = new _ccsg.Label(this.string, fntRawUrl, textureUrl);
+        sgNode.setVisible(false);
+
         if (CC_JSB) {
             sgNode.retain();
         }
@@ -398,8 +400,8 @@ var Label = cc.Class({
             if (this.overflow === Overflow.NONE) {
                 this.node.setContentSize(this._sgNode.getContentSize());
             }
-            if ( !this.node._sizeProvider ) {
-                this.node._sizeProvider = this._sgNode;
+            if (this.node._sizeProvider !== this._sgNode) {
+                this._registSizeProvider();
             }
         }
     }
