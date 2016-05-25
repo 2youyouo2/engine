@@ -519,7 +519,7 @@ Js.mixin(_p, {
                 p0 = pts[pts.length - 1];
             }
 
-            for (var _i = 0, size = pts.length; _i < size; _i++) {
+            for (var j = 0, size = pts.length; j < size; j++) {
                 // Calculate segment direction and length
                 var dPos = p1.sub(p0);
                 p0.len = dPos.mag();
@@ -528,7 +528,7 @@ Js.mixin(_p, {
                 p0.dy = dPos.y;
                 // Advance
                 p0 = p1;
-                p1 = pts[_i + 1];
+                p1 = pts[j + 1];
             }
         }
     },
