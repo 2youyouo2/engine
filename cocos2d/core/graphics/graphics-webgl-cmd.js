@@ -63,7 +63,7 @@ var PI_2 = PI*2;
 var INIT_VERTS_SIZE = 32;
 var KAPPA90 = 0.5522847493;
 
-var VERTS_BYTE_LENGTH  = 12;
+var VERTS_BYTE_LENGTH  = 8;
 
 var min     = Math.min;
 var max     = Math.max;
@@ -167,13 +167,29 @@ function WebGLRenderCmd (renderable) {
     this._blendFunc = new cc.BlendFunc(cc.macro.BLEND_SRC, cc.macro.BLEND_DST);
 
     // init shader
-    this._shader = new cc.GLProgram();
-    this._shader.initWithVertexShaderByteArray(Shader.vert, Shader.frag);
-    this._shader.retain();
-    this._shader.addAttribute(cc.ATTRIBUTE_NAME_POSITION, cc.VERTEX_ATTRIB_POSITION);
-    this._shader.link();
-    this._shader.updateUniforms();
+    var shader = new cc.GLProgram();
+    shader.initWithVertexShaderByteArray(Shader.vert, Shader.frag);
+    shader.retain();
+    shader.addAttribute('a_pos', 0);
+    shader.addAttribute('a_data', 1);
+    shader.link();
+    shader.updateUniforms();
 
+    this._shader = shader;
+
+    // uniform locations
+    var uniformLocations = {};
+    var uniforms = [
+        'u_ratio', 'u_linewidth', 'u_gapwidth', 'u_antialiasing', 'u_extra', 'u_antialiasingmatrix', 'u_offset', 'u_blur',
+        'u_color'
+    ];
+    uniforms.forEach(function (uniform) {
+        uniformLocations[uniform] = shader.getUniformLocationForName(uniform);
+    });
+
+    this._uniformLocations = uniformLocations;
+
+    // init vertices
     this._allocVerts(INIT_VERTS_SIZE);
 }
 
@@ -404,6 +420,12 @@ Js.mixin(_p, {
 cc.defineGetterSetter(_p, 'strokeColor', _p.getStrokeColor, _p.setStrokeColor);
 cc.defineGetterSetter(_p, 'fillColor', _p.getFillColor, _p.setFillColor);
 
+var antialiasingMatrix = new Float32Array(4);
+antialiasingMatrix[0] = 1;
+antialiasingMatrix[1] = 0;
+antialiasingMatrix[2] = 0;
+antialiasingMatrix[3] = 1;
+
 Js.mixin(_p, {
     _render: function () {
         var vertsBuffer = this._vertsBuffer;
@@ -415,6 +437,9 @@ Js.mixin(_p, {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._indicesVBO);
 
         if (this._vertsDirty) {
+            // var b = this._vertsUint16Buffer;
+            // b[4] = 100;
+
             gl.bufferData(gl.ARRAY_BUFFER, vertsBuffer, gl.STREAM_DRAW);
             this._vertsDirty = false;
         }
@@ -424,38 +449,30 @@ Js.mixin(_p, {
             this._indicesDirty = false;
         }
 
-        cc.gl.enableVertexAttribs(cc.macro.VERTEX_ATTRIB_FLAG_POSITION);
+        gl.enableVertexAttribArray(0);
+        gl.enableVertexAttribArray(1);
 
-        gl.vertexAttribPointer(cc.macro.VERTEX_ATTRIB_POSITION, 2, gl.FLOAT, false, VERTS_BYTE_LENGTH, 0);
+        gl.vertexAttribPointer(0, 2, gl.UNSIGNED_SHORT, false, VERTS_BYTE_LENGTH, 0);
+        gl.vertexAttribPointer(1, 4, gl.BYTE, false, VERTS_BYTE_LENGTH, 4);
 
-        var shader = this._shader;
-        var colorLocation = shader.getUniformLocationForName('color');
+        var uniformLocations = this._uniformLocations;
+
+        gl.uniform1f(uniformLocations.u_linewidth, this.lineWidth / 2);
+        gl.uniform1f(uniformLocations.u_gapwidth, 0 / 2);
+        gl.uniform1f(uniformLocations.u_antialiasing, 0.5 / 2);
+        gl.uniform1f(uniformLocations.u_blur, 0.5);
+        gl.uniform1f(uniformLocations.u_extra, 0);
+        gl.uniform1f(uniformLocations.u_offset, -0);
+        gl.uniformMatrix2fv(uniformLocations.u_antialiasingmatrix, false, antialiasingMatrix);
 
         var paths = this._paths;
         for (var i = 0, l = this._pathLength; i < l; i++) {
             var path = paths[i];
 
-            if (path.complex && path.nIndices) {
-                if (path.nIndices) {
-                    var color = path.fillColor;
-                    gl.uniform4f(colorLocation, color.r / 255, color.g / 255, color.b / 255, color.a / 255);
-                    gl.drawElements(gl.TRIANGLES, path.nIndices, gl.UNSIGNED_SHORT, path.indicesOffset * 2);
-
-                    cc.incrementGLDraws(path.nIndices);
-                }
-            }
-            else if (!path.complex && path.nfill) {
-                var color = path.fillColor;
-                gl.uniform4f(colorLocation, color.r / 255, color.g / 255, color.b / 255, color.a / 255);
-                gl.drawArrays(gl.TRIANGLE_FAN, path.fillOffset, path.nfill);
-
-                cc.incrementGLDraws(path.nfill);
-            }
-
-            if (path.nstroke) {
+            if (path.nIndices) {
                 var color = path.strokeColor;
-                gl.uniform4f(colorLocation, color.r / 255, color.g / 255, color.b / 255, color.a / 255);
-                gl.drawArrays(gl.TRIANGLE_STRIP, path.strokeOffset, path.nstroke);
+                gl.uniform4f(uniformLocations.u_color, color.r / 255, color.g / 255, color.b / 255, color.a / 255);
+                gl.drawElements(gl.TRIANGLES, path.nIndices, gl.UNSIGNED_SHORT, path.indicesOffset * 2);
 
                 cc.incrementGLDraws(path.nstroke);
             }
@@ -465,7 +482,6 @@ Js.mixin(_p, {
     },
 
     rendering: function () {
-        var node = this._node;
         cc.gl.blendFunc(this._blendFunc.src, this._blendFunc.dst);
 
         var shader = this._shader;
@@ -583,7 +599,7 @@ Js.mixin(_p, {
     _allocVerts: function (cverts) {
         var dnverts = this._vertsOffset + cverts;
         var buffer = this._vertsBuffer;
-        var nverts = buffer ? buffer.length / VERTS_BYTE_LENGTH : 0;
+        var nverts = buffer ? buffer.byteLength / VERTS_BYTE_LENGTH : 0;
 
         if (dnverts > nverts) {
             if (nverts === 0) {
@@ -594,15 +610,20 @@ Js.mixin(_p, {
                 nverts *= 2;
             }
 
-            var newBuffer = new Float32Array(nverts * VERTS_BYTE_LENGTH);
+            var newBuffer = new ArrayBuffer(nverts * VERTS_BYTE_LENGTH);
+            var newUint8Buffer = new Uint8Array(newBuffer);
+            var newUint16Buffer = new Uint16Array(newBuffer);
 
-            if (buffer) {
-                for (var i = 0, l = buffer.length; i < l; i++) {
-                    newBuffer[i] = buffer[i];
+            var uint16Buffer = this._vertsUint16Buffer;
+            if (uint16Buffer) {
+                for (var i = 0, l = uint16Buffer.length; i < l; i++) {
+                    newUint16Buffer[i] = uint16Buffer[i];
                 }
             }
 
             this._vertsBuffer = newBuffer;
+            this._vertsUint8Buffer = newUint8Buffer;
+            this._vertsUint16Buffer = newUint16Buffer;
         }
     },
 
@@ -665,7 +686,9 @@ Js.mixin(_p, {
             var vertsOffset = this._vertsOffset;
 
             path.indicesOffset = indicesOffset;
-            path.vertsOffset = vertsOffset;
+            path.strokeOffset = vertsOffset;
+
+            path.strokeColor = this._strokeColor;
 
             var len = vertices.length;
             // If the line has duplicate vertices at the end, adjust length to remove them.
@@ -687,6 +710,7 @@ Js.mixin(_p, {
             // we could be more precise, but it would only save a negligible amount of space
             // this.makeRoomFor('line', len * 10);
             this._allocVerts(len * 10);
+            this._allocIndices(len * 10 * 3);
 
             // a line may not have coincident points
             if (len === 2 && closed) return;
@@ -756,7 +780,7 @@ Js.mixin(_p, {
                     if (prevSegmentLength > 2 * sharpCornerOffset) {
                         var newPrevVertex = currentVertex.sub(currentVertex.sub(prevVertex).mulSelf(sharpCornerOffset / prevSegmentLength).roundSelf());
                         this._distance += newPrevVertex.mag(prevVertex);
-                        this.addCurrentVertex(path, newPrevVertex, this._distance, prevNormal.mult(1), 0, 0, false);
+                        this.addCurrentVertex(newPrevVertex, this._distance, prevNormal.mul(1), 0, 0, false);
                         prevVertex = newPrevVertex;
                     }
                 }
@@ -792,8 +816,8 @@ Js.mixin(_p, {
 
                 if (currentJoin === 'miter') {
 
-                    joinNormal._mult(miterLength);
-                    this.addCurrentVertex(path, currentVertex, this._distance, joinNormal, 0, 0, false);
+                    joinNormal.mulSelf(miterLength);
+                    this.addCurrentVertex(currentVertex, this._distance, joinNormal, 0, 0, false);
 
                 } else if (currentJoin === 'flipbevel') {
                     // miter is too big, flip the direction to make a beveled join
@@ -805,10 +829,10 @@ Js.mixin(_p, {
                     } else {
                         var direction = prevNormal.x * nextNormal.y - prevNormal.y * nextNormal.x > 0 ? -1 : 1;
                         var bevelLength = miterLength * prevNormal.add(nextNormal).mag() / prevNormal.sub(nextNormal).mag();
-                        joinNormal._perp()._mult(bevelLength * direction);
+                        joinNormal.perp().mulSelf(bevelLength * direction);
                     }
-                    this.addCurrentVertex(path, currentVertex, this._distance, joinNormal, 0, 0, false);
-                    this.addCurrentVertex(path, currentVertex, this._distance, joinNormal.mult(-1), 0, 0, false);
+                    this.addCurrentVertex(currentVertex, this._distance, joinNormal, 0, 0, false);
+                    this.addCurrentVertex(currentVertex, this._distance, joinNormal.mul(-1), 0, 0, false);
 
                 } else if (currentJoin === 'bevel' || currentJoin === 'fakeround') {
                     var lineTurnsLeft = (prevNormal.x * nextNormal.y - prevNormal.y * nextNormal.x) > 0;
@@ -823,7 +847,7 @@ Js.mixin(_p, {
 
                     // Close previous segment with a bevel
                     if (!startOfLine) {
-                        this.addCurrentVertex(path, currentVertex, this._distance, prevNormal, offsetA, offsetB, false);
+                        this.addCurrentVertex(currentVertex, this._distance, prevNormal, offsetA, offsetB, false);
                     }
 
                     if (currentJoin === 'fakeround') {
@@ -838,39 +862,39 @@ Js.mixin(_p, {
                         var approxFractionalJoinNormal;
 
                         for (var m = 0; m < n; m++) {
-                            approxFractionalJoinNormal = nextNormal.mult((m + 1) / (n + 1)).addSelf(prevNormal).normalizeSelf();
-                            this.addPieSliceVertex(path, currentVertex, this._distance, approxFractionalJoinNormal, lineTurnsLeft);
+                            approxFractionalJoinNormal = nextNormal.mul((m + 1) / (n + 1)).addSelf(prevNormal).normalizeSelf();
+                            this.addPieSliceVertex(currentVertex, this._distance, approxFractionalJoinNormal, lineTurnsLeft);
                         }
 
-                        this.addPieSliceVertex(path, currentVertex, this._distance, joinNormal, lineTurnsLeft);
+                        this.addPieSliceVertex(currentVertex, this._distance, joinNormal, lineTurnsLeft);
 
                         for (var k = n - 1; k >= 0; k--) {
-                            approxFractionalJoinNormal = prevNormal.mult((k + 1) / (n + 1)).addSelf(nextNormal).normalizeSelf();
-                            this.addPieSliceVertex(path, currentVertex, this._distance, approxFractionalJoinNormal, lineTurnsLeft);
+                            approxFractionalJoinNormal = prevNormal.mul((k + 1) / (n + 1)).addSelf(nextNormal).normalizeSelf();
+                            this.addPieSliceVertex(currentVertex, this._distance, approxFractionalJoinNormal, lineTurnsLeft);
                         }
                     }
 
                     // Start next segment
                     if (nextVertex) {
-                        this.addCurrentVertex(path, currentVertex, this._distance, nextNormal, -offsetA, -offsetB, false);
+                        this.addCurrentVertex(currentVertex, this._distance, nextNormal, -offsetA, -offsetB, false);
                     }
 
                 } else if (currentJoin === 'butt') {
                     if (!startOfLine) {
                         // Close previous segment with a butt
-                        this.addCurrentVertex(path, currentVertex, this._distance, prevNormal, 0, 0, false);
+                        this.addCurrentVertex(currentVertex, this._distance, prevNormal, 0, 0, false);
                     }
 
                     // Start next segment with a butt
                     if (nextVertex) {
-                        this.addCurrentVertex(path, currentVertex, this._distance, nextNormal, 0, 0, false);
+                        this.addCurrentVertex(currentVertex, this._distance, nextNormal, 0, 0, false);
                     }
 
                 } else if (currentJoin === 'square') {
 
                     if (!startOfLine) {
                         // Close previous segment with a square cap
-                        this.addCurrentVertex(path, currentVertex, this._distance, prevNormal, 1, 1, false);
+                        this.addCurrentVertex(currentVertex, this._distance, prevNormal, 1, 1, false);
 
                         // The segment is done. Unset vertices to disconnect segments.
                         this.e1 = this.e2 = -1;
@@ -878,17 +902,17 @@ Js.mixin(_p, {
 
                     // Start next segment
                     if (nextVertex) {
-                        this.addCurrentVertex(path, currentVertex, this._distance, nextNormal, -1, -1, false);
+                        this.addCurrentVertex(currentVertex, this._distance, nextNormal, -1, -1, false);
                     }
 
                 } else if (currentJoin === 'round') {
 
                     if (!startOfLine) {
                         // Close previous segment with butt
-                        this.addCurrentVertex(path, currentVertex, this._distance, prevNormal, 0, 0, false);
+                        this.addCurrentVertex(currentVertex, this._distance, prevNormal, 0, 0, false);
 
                         // Add round cap or linejoin at end of segment
-                        this.addCurrentVertex(path, currentVertex, this._distance, prevNormal, 1, 1, true);
+                        this.addCurrentVertex(currentVertex, this._distance, prevNormal, 1, 1, true);
 
                         // The segment is done. Unset vertices to disconnect segments.
                         this.e1 = this.e2 = -1;
@@ -898,18 +922,18 @@ Js.mixin(_p, {
                     // Start next segment with a butt
                     if (nextVertex) {
                         // Add round cap before first segment
-                        this.addCurrentVertex(path, currentVertex, this._distance, nextNormal, -1, -1, true);
+                        this.addCurrentVertex(currentVertex, this._distance, nextNormal, -1, -1, true);
 
-                        this.addCurrentVertex(path, currentVertex, this._distance, nextNormal, 0, 0, false);
+                        this.addCurrentVertex(currentVertex, this._distance, nextNormal, 0, 0, false);
                     }
                 }
 
                 if (isSharpCorner && i < len - 1) {
-                    var nextSegmentLength = currentVertex.dist(nextVertex);
+                    var nextSegmentLength = currentVertex.mag(nextVertex);
                     if (nextSegmentLength > 2 * sharpCornerOffset) {
                         var newCurrentVertex = currentVertex.add(nextVertex.sub(currentVertex).mulSelf(sharpCornerOffset / nextSegmentLength).roundSelf());
-                        this._distance += newCurrentVertex.dist(currentVertex);
-                        this.addCurrentVertex(path, newCurrentVertex, this._distance, nextNormal.mult(1), 0, 0, false);
+                        this._distance += newCurrentVertex.mag(currentVertex);
+                        this.addCurrentVertex(newCurrentVertex, this._distance, nextNormal.mul(1), 0, 0, false);
                         currentVertex = newCurrentVertex;
                     }
                 }
@@ -918,24 +942,24 @@ Js.mixin(_p, {
             }
 
             path.nIndices = this._indicesOffset - indicesOffset;
-            path.nverts = this._vertsOffset - vertsOffset;
+            path.nstroke = this._vertsOffset - vertsOffset;
         }
     },
 
-    addCurrentVertex: function (path, currentVertex, distance, normal, endLeft, endRight, round) {
+    addCurrentVertex: function (currentVertex, distance, normal, endLeft, endRight, round) {
         var tx = round ? 1 : 0;
         var extrude;
 
         extrude = normal.clone();
         if (endLeft) extrude.subSelf(normal.perp().mulSelf(endLeft));
-        this.e3 = this.addLineVertex(path, currentVertex, extrude, tx, 0, endLeft, distance);
+        this.e3 = this.addLineVertex(currentVertex, extrude, tx, 0, endLeft, distance);
         if (this.e1 >= 0 && this.e2 >= 0) {
             this.addIndices(this.e1, this.e2, this.e3);
         }
         this.e1 = this.e2;
         this.e2 = this.e3;
 
-        extrude = normal.mult(-1);
+        extrude = normal.mul(-1);
         if (endRight) extrude.subSelf(normal.perp().mulSelf(endRight));
         this.e3 = this.addLineVertex(currentVertex, extrude, tx, 1, -endRight, distance);
         if (this.e1 >= 0 && this.e2 >= 0) {
@@ -950,7 +974,7 @@ Js.mixin(_p, {
         // to `linesofar`.
         if (distance > MAX_LINE_DISTANCE / 2) {
             this._distance = 0;
-            this.addCurrentVertex(path, currentVertex, this._distance, normal, endLeft, endRight, round);
+            this.addCurrentVertex(currentVertex, this._distance, normal, endLeft, endRight, round);
         }
     },
 
@@ -964,9 +988,9 @@ Js.mixin(_p, {
      * @param {boolean} whether the line is turning left or right at this angle
      * @private
      */
-    addPieSliceVertex: function (path, currentVertex, distance, extrude, lineTurnsLeft) {
+    addPieSliceVertex: function (currentVertex, distance, extrude, lineTurnsLeft) {
         var ty = lineTurnsLeft ? 1 : 0;
-        extrude = extrude.mult(lineTurnsLeft ? -1 : 1);
+        extrude = extrude.mul(lineTurnsLeft ? -1 : 1);
 
         this.e3 = this.addLineVertex(currentVertex, extrude, 0, ty, 0, distance);
 
@@ -981,30 +1005,35 @@ Js.mixin(_p, {
         }
     },
 
-    addLineVertex: function (path, point, extrude, tx, ty, dir, linesofar) {
-        var buffer = this._vertsBuffer;
+    addLineVertex: function (point, extrude, tx, ty, dir, linesofar) {
+        var uint8Buffer = this._vertsUint8Buffer;
+        var uint16Buffer = this._vertsUint16Buffer;
+
+        var offset = this._vertsOffset;
+
+        var i = offset * 4;
+        // a_pos
+        uint16Buffer[i    ] = (point.x << 1) | tx;
+        uint16Buffer[i + 1] = (point.x << 1) | tx;
+
+        i = offset * 8;
+        // a_data
+        // add 128 to store an byte in an unsigned byte
+        uint8Buffer[i + 4] = Math.round(EXTRUDE_SCALE * extrude.x) + 128;
+        uint8Buffer[i + 5] = Math.round(EXTRUDE_SCALE * extrude.y) + 128;
+        // Encode the -1/0/1 direction value into the first two bits of .z of a_data.
+        // Combine it with the lower 6 bits of `linesofar` (shifted by 2 bites to make
+        // room for the direction value). The upper 8 bits of `linesofar` are placed in
+        // the `w` component. `linesofar` is scaled down by `LINE_DISTANCE_SCALE` so that
+        // we can store longer distances while sacrificing precision.
+        uint8Buffer[i + 6] = ((dir === 0 ? 0 : (dir < 0 ? -1 : 1)) + 1) | (((linesofar * LINE_DISTANCE_SCALE) & 0x3F) << 2);
+        uint8Buffer[i + 7] = (linesofar * LINE_DISTANCE_SCALE) >> 6;
 
 
-        return vertexBuffer.emplaceBack(
-                // a_pos
-                (point.x << 1) | tx,
-                (point.y << 1) | ty,
-                // a_data
-                // add 128 to store an byte in an unsigned byte
-                Math.round(EXTRUDE_SCALE * extrude.x) + 128,
-                Math.round(EXTRUDE_SCALE * extrude.y) + 128,
-                // Encode the -1/0/1 direction value into the first two bits of .z of a_data.
-                // Combine it with the lower 6 bits of `linesofar` (shifted by 2 bites to make
-                // room for the direction value). The upper 8 bits of `linesofar` are placed in
-                // the `w` component. `linesofar` is scaled down by `LINE_DISTANCE_SCALE` so that
-                // we can store longer distances while sacrificing precision.
-                ((dir === 0 ? 0 : (dir < 0 ? -1 : 1)) + 1) | (((linesofar * LINE_DISTANCE_SCALE) & 0x3F) << 2),
-                (linesofar * LINE_DISTANCE_SCALE) >> 6);
+        return this._vertsOffset ++;
     },
 
-    addIndices: function (path, i1, i2, i3) {
-        this._allocIndices(3);
-
+    addIndices: function (i1, i2, i3) {
         var indices = this._indicesBuffer;
         var indicesOffset = this._indicesOffset;
 
@@ -1014,7 +1043,6 @@ Js.mixin(_p, {
 
         this._indicesOffset += 3;
         this._indicesDirty = true;
-
     },
 
     // _expandStroke: function () {
