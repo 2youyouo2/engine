@@ -63,7 +63,7 @@ var PI_2 = PI*2;
 var INIT_VERTS_SIZE = 32;
 var KAPPA90 = 0.5522847493;
 
-var VERTS_BYTE_LENGTH  = 8;
+var VERTS_BYTE_LENGTH  = 12;
 
 var min     = Math.min;
 var max     = Math.max;
@@ -437,7 +437,7 @@ Js.mixin(_p, {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._indicesVBO);
 
         if (this._vertsDirty) {
-            // var b = this._vertsUint16Buffer;
+            // var b = this._vertsFloat32Buffer;
             // b[4] = 100;
 
             gl.bufferData(gl.ARRAY_BUFFER, vertsBuffer, gl.STREAM_DRAW);
@@ -452,8 +452,8 @@ Js.mixin(_p, {
         gl.enableVertexAttribArray(0);
         gl.enableVertexAttribArray(1);
 
-        gl.vertexAttribPointer(0, 2, gl.UNSIGNED_SHORT, false, VERTS_BYTE_LENGTH, 0);
-        gl.vertexAttribPointer(1, 4, gl.BYTE, false, VERTS_BYTE_LENGTH, 4);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, VERTS_BYTE_LENGTH, 0);
+        gl.vertexAttribPointer(1, 4, gl.BYTE, false, VERTS_BYTE_LENGTH, 8);
 
         var uniformLocations = this._uniformLocations;
 
@@ -612,18 +612,18 @@ Js.mixin(_p, {
 
             var newBuffer = new ArrayBuffer(nverts * VERTS_BYTE_LENGTH);
             var newUint8Buffer = new Uint8Array(newBuffer);
-            var newUint16Buffer = new Uint16Array(newBuffer);
+            var newFloat32Buffer = new Float32Array(newBuffer);
 
-            var uint16Buffer = this._vertsUint16Buffer;
-            if (uint16Buffer) {
-                for (var i = 0, l = uint16Buffer.length; i < l; i++) {
-                    newUint16Buffer[i] = uint16Buffer[i];
+            var float32Buffer = this._vertsFloat32Buffer;
+            if (float32Buffer) {
+                for (var i = 0, l = float32Buffer.length; i < l; i++) {
+                    newFloat32Buffer[i] = float32Buffer[i];
                 }
             }
 
             this._vertsBuffer = newBuffer;
             this._vertsUint8Buffer = newUint8Buffer;
-            this._vertsUint16Buffer = newUint16Buffer;
+            this._vertsFloat32Buffer = newFloat32Buffer;
         }
     },
 
@@ -1007,27 +1007,27 @@ Js.mixin(_p, {
 
     addLineVertex: function (point, extrude, tx, ty, dir, linesofar) {
         var uint8Buffer = this._vertsUint8Buffer;
-        var uint16Buffer = this._vertsUint16Buffer;
+        var float32Buffer = this._vertsFloat32Buffer;
 
         var offset = this._vertsOffset;
 
-        var i = offset * 4;
+        var i = offset * 3;
         // a_pos
-        uint16Buffer[i    ] = (point.x << 1) | tx;
-        uint16Buffer[i + 1] = (point.x << 1) | tx;
+        float32Buffer[i    ] = (point.x << 1) | tx;
+        float32Buffer[i + 1] = (point.y << 1) | ty;
 
-        i = offset * 8;
+        i = offset * 12;
         // a_data
         // add 128 to store an byte in an unsigned byte
-        uint8Buffer[i + 4] = Math.round(EXTRUDE_SCALE * extrude.x) + 128;
-        uint8Buffer[i + 5] = Math.round(EXTRUDE_SCALE * extrude.y) + 128;
+        uint8Buffer[i + 8] = Math.round(EXTRUDE_SCALE * extrude.x) + 128;
+        uint8Buffer[i + 9] = Math.round(EXTRUDE_SCALE * extrude.y) + 128;
         // Encode the -1/0/1 direction value into the first two bits of .z of a_data.
         // Combine it with the lower 6 bits of `linesofar` (shifted by 2 bites to make
         // room for the direction value). The upper 8 bits of `linesofar` are placed in
         // the `w` component. `linesofar` is scaled down by `LINE_DISTANCE_SCALE` so that
         // we can store longer distances while sacrificing precision.
-        uint8Buffer[i + 6] = ((dir === 0 ? 0 : (dir < 0 ? -1 : 1)) + 1) | (((linesofar * LINE_DISTANCE_SCALE) & 0x3F) << 2);
-        uint8Buffer[i + 7] = (linesofar * LINE_DISTANCE_SCALE) >> 6;
+        uint8Buffer[i + 10] = ((dir === 0 ? 0 : (dir < 0 ? -1 : 1)) + 1) | (((linesofar * LINE_DISTANCE_SCALE) & 0x3F) << 2);
+        uint8Buffer[i + 11] = (linesofar * LINE_DISTANCE_SCALE) >> 6;
 
 
         return this._vertsOffset ++;

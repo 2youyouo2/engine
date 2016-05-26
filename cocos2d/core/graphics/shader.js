@@ -1,24 +1,24 @@
 
 // var vert = [
-//     'attribute vec4 a_position;',
-//     '',
-//     'void main()',
-//     '{',
-//     // '    gl_Position = CC_MVPMatrix * a_position;',
-//     '    gl_Position = (CC_PMatrix * CC_MVMatrix) * a_position;',
-//     '}'
+// 'attribute vec4 a_position;',
+// '',
+// 'void main()',
+// '{',
+// // '    gl_Position = CC_MVPMatrix * a_position;',
+// '    gl_Position = (CC_PMatrix * CC_MVMatrix) * a_position;',
+// '}'
 // ];
 
 // var frag = [
-//     '#ifdef GL_ES',
-//     'precision mediump float;',
-//     '#endif',
-//     '',
-//     'uniform vec4 color;',
-//     '',
-//     'void main(void) {',
-//     '    gl_FragColor = color;',
-//     '}'
+// '#ifdef GL_ES',
+// 'precision mediump float;',
+// '#endif',
+// '',
+// 'uniform vec4 color;',
+// '',
+// 'void main(void) {',
+// '    gl_FragColor = color;',
+// '}'
 // ];
     
 
@@ -78,7 +78,7 @@ var vert = [
 '',
 '    // Remove the texture normal bit of the position before scaling it with the',
 '    // model/view matrix.',
-'    gl_Position = (CC_PMatrix * CC_MVMatrix) * vec4(floor(a_pos * 0.5) + (offset + dist.xy) / u_ratio, 0.0, 1.0);',
+'    gl_Position = (CC_PMatrix * CC_MVMatrix) * vec4(floor(a_pos * 0.5) + (offset + dist.xy), 0.0, 1.0);',
 '',
 '    // position of y on the screen',
 '    float y = gl_Position.y / gl_Position.w;',
