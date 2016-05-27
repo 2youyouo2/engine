@@ -952,7 +952,7 @@ Js.mixin(_p, {
 
         extrude = normal.clone();
         if (endLeft) extrude.subSelf(normal.perp().mulSelf(endLeft));
-        this.e3 = this.addLineVertex(currentVertex, extrude, tx, 0, endLeft, distance);
+        this.e3 = this.addVertex(currentVertex, extrude, tx, 0, endLeft, distance);
         if (this.e1 >= 0 && this.e2 >= 0) {
             this.addIndices(this.e1, this.e2, this.e3);
         }
@@ -961,7 +961,7 @@ Js.mixin(_p, {
 
         extrude = normal.mul(-1);
         if (endRight) extrude.subSelf(normal.perp().mulSelf(endRight));
-        this.e3 = this.addLineVertex(currentVertex, extrude, tx, 1, -endRight, distance);
+        this.e3 = this.addVertex(currentVertex, extrude, tx, 1, -endRight, distance);
         if (this.e1 >= 0 && this.e2 >= 0) {
             this.addIndices(this.e1, this.e2, this.e3);
         }
@@ -992,7 +992,7 @@ Js.mixin(_p, {
         var ty = lineTurnsLeft ? 1 : 0;
         extrude = extrude.mul(lineTurnsLeft ? -1 : 1);
 
-        this.e3 = this.addLineVertex(currentVertex, extrude, 0, ty, 0, distance);
+        this.e3 = this.addVertex(currentVertex, extrude, 0, ty, 0, distance);
 
         if (this.e1 >= 0 && this.e2 >= 0) {
             this.addIndices(this.e1, this.e2, this.e3);
@@ -1005,22 +1005,22 @@ Js.mixin(_p, {
         }
     },
 
-    addLineVertex: function (point, extrude, tx, ty, dir, linesofar) {
+    addVertex: function (point, extrude, tx, ty, dir, linesofar) {
         var uint8Buffer = this._vertsUint8Buffer;
         var float32Buffer = this._vertsFloat32Buffer;
 
         var offset = this._vertsOffset;
 
         var i = offset * 3;
-        // a_pos
+        // // a_pos
         float32Buffer[i    ] = (point.x << 1) | tx;
         float32Buffer[i + 1] = (point.y << 1) | ty;
 
         i = offset * 12;
         // a_data
         // add 128 to store an byte in an unsigned byte
-        uint8Buffer[i + 8] = Math.round(EXTRUDE_SCALE * extrude.x) + 128;
-        uint8Buffer[i + 9] = Math.round(EXTRUDE_SCALE * extrude.y) + 128;
+        uint8Buffer[i + 8] = /*Math.round*/((EXTRUDE_SCALE * extrude.x + 0.5) | 0) + 128;
+        uint8Buffer[i + 9] = /*Math.round*/((EXTRUDE_SCALE * extrude.y + 0.5) | 0) + 128;
         // Encode the -1/0/1 direction value into the first two bits of .z of a_data.
         // Combine it with the lower 6 bits of `linesofar` (shifted by 2 bites to make
         // room for the direction value). The upper 8 bits of `linesofar` are placed in
@@ -1028,7 +1028,6 @@ Js.mixin(_p, {
         // we can store longer distances while sacrificing precision.
         uint8Buffer[i + 10] = ((dir === 0 ? 0 : (dir < 0 ? -1 : 1)) + 1) | (((linesofar * LINE_DISTANCE_SCALE) & 0x3F) << 2);
         uint8Buffer[i + 11] = (linesofar * LINE_DISTANCE_SCALE) >> 6;
-
 
         return this._vertsOffset ++;
     },
