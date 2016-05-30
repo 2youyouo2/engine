@@ -945,9 +945,10 @@ Js.mixin(_p, {
 
             path.nIndices = this._indicesOffset - indicesOffset;
             path.nstroke = this._vertsOffset - vertsOffset;
+        
+            Vec2Pool.resetIndex();
         }
 
-        Vec2Pool.resetIndex();
     },
 
     addCurrentVertex: function (currentVertex, distance, normal, endLeft, endRight, round) {
@@ -1552,7 +1553,7 @@ Js.mixin(_p, {
         d3 = abs((x3 - x4) * dy - (y3 - y4) * dx);
 
         if ((d2 + d3) * (d2 + d3) < this._tessTol * (dx * dx + dy * dy)) {
-            this._addPoint(x4, y4, type | PointFlags.PT_ROUND);
+            this._addPoint(x4, y4, type);
             return;
         }
 
