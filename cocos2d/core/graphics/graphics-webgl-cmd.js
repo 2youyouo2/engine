@@ -5,6 +5,8 @@ var LineJoin    = require('./types').LineJoin;
 
 var Earcut = require('./earcut');
 
+var Vec2Pool = require('./vec2-pool');
+
 // NOTE ON EXTRUDE SCALE:
 // scale the extrusion vector so that the normal length is this value.
 // contains the "texture" normals (-1..1). this is distinct from the extrude
@@ -453,12 +455,12 @@ Js.mixin(_p, {
         gl.enableVertexAttribArray(1);
 
         gl.vertexAttribPointer(0, 2, gl.FLOAT, false, VERTS_BYTE_LENGTH, 0);
-        gl.vertexAttribPointer(1, 4, gl.BYTE, false, VERTS_BYTE_LENGTH, 8);
+        gl.vertexAttribPointer(1, 4, gl.UNSIGNED_BYTE, false, VERTS_BYTE_LENGTH, 8);
 
         var uniformLocations = this._uniformLocations;
 
         gl.uniform1f(uniformLocations.u_linewidth, this.lineWidth / 2);
-        gl.uniform1f(uniformLocations.u_gapwidth, 0 / 2);
+        gl.uniform1f(uniformLocations.u_gapwidth, 0/*0 / 2*/);
         gl.uniform1f(uniformLocations.u_antialiasing, 0.5 / 2);
         gl.uniform1f(uniformLocations.u_blur, 0.5);
         gl.uniform1f(uniformLocations.u_extra, 0);
@@ -701,7 +703,7 @@ Js.mixin(_p, {
 
             if (join === 'bevel') miterLimit = 1.05;
 
-            var sharpCornerOffset = SHARP_CORNER_OFFSET * (EXTENT / (512 * this.overscaling));
+            var sharpCornerOffset = SHARP_CORNER_OFFSET * (EXTENT / (512 * 1/*this.overscaling*/));
 
             var firstVertex = vertices[0],
                 lastVertex = vertices[len - 1],
@@ -727,7 +729,7 @@ Js.mixin(_p, {
 
             if (closed) {
                 currentVertex = vertices[len - 2];
-                nextNormal = firstVertex.sub(currentVertex).normalizeSelf().perpSelf();
+                nextNormal = firstVertex.sub(currentVertex, Vec2Pool.get()).normalizeSelf().perpSelf();
             }
 
             for (var i = 0; i < len; i++) {
@@ -747,7 +749,7 @@ Js.mixin(_p, {
                 // Calculate the normal towards the next vertex in this line. In case
                 // there is no next vertex, pretend that the line is continuing straight,
                 // meaning that we are just using the previous normal.
-                nextNormal = nextVertex ? nextVertex.sub(currentVertex).normalizeSelf().perpSelf() : prevNormal;
+                nextNormal = nextVertex ? nextVertex.sub(currentVertex, Vec2Pool.get()).normalizeSelf().perpSelf() : prevNormal;
 
                 // If we still don't have a previous normal, this is the beginning of a
                 // non-closed line, so we're doing a straight "join".
@@ -755,7 +757,7 @@ Js.mixin(_p, {
 
                 // Determine the normal of the join extrusion. It is the angle bisector
                 // of the segments between the previous line and the next line.
-                var joinNormal = prevNormal.add(nextNormal).normalizeSelf();
+                var joinNormal = prevNormal.add(nextNormal, Vec2Pool.get()).normalizeSelf();
 
                 /*  joinNormal     prevNormal
                  *             ↖      ↑
@@ -778,9 +780,9 @@ Js.mixin(_p, {
                 if (isSharpCorner && i > 0) {
                     var prevSegmentLength = currentVertex.mag(prevVertex);
                     if (prevSegmentLength > 2 * sharpCornerOffset) {
-                        var newPrevVertex = currentVertex.sub(currentVertex.sub(prevVertex).mulSelf(sharpCornerOffset / prevSegmentLength).roundSelf());
+                        var newPrevVertex = currentVertex.sub(currentVertex.sub(prevVertex, Vec2Pool.get()).mulSelf(sharpCornerOffset / prevSegmentLength).roundSelf(), Vec2Pool.get());
                         this._distance += newPrevVertex.mag(prevVertex);
-                        this.addCurrentVertex(newPrevVertex, this._distance, prevNormal.mul(1), 0, 0, false);
+                        this.addCurrentVertex(newPrevVertex, this._distance, prevNormal.mul(1, Vec2Pool.get()), 0, 0, false);
                         prevVertex = newPrevVertex;
                     }
                 }
@@ -822,17 +824,17 @@ Js.mixin(_p, {
                 } else if (currentJoin === 'flipbevel') {
                     // miter is too big, flip the direction to make a beveled join
 
-                    if (miterLength > 100) {
-                        // Almost parallel lines
-                        joinNormal = nextNormal.clone();
+                    // if (miterLength > 100) {
+                    //     // Almost parallel lines
+                    //     joinNormal = nextNormal.clone();
 
-                    } else {
+                    // } else {
                         var direction = prevNormal.x * nextNormal.y - prevNormal.y * nextNormal.x > 0 ? -1 : 1;
-                        var bevelLength = miterLength * prevNormal.add(nextNormal).mag() / prevNormal.sub(nextNormal).mag();
-                        joinNormal.perp().mulSelf(bevelLength * direction);
-                    }
+                        var bevelLength = miterLength * prevNormal.add(nextNormal, Vec2Pool.get()).mag() / prevNormal.sub(nextNormal, Vec2Pool.get()).mag();
+                        joinNormal.perpSelf().mulSelf(bevelLength * direction);
+                    // }
                     this.addCurrentVertex(currentVertex, this._distance, joinNormal, 0, 0, false);
-                    this.addCurrentVertex(currentVertex, this._distance, joinNormal.mul(-1), 0, 0, false);
+                    this.addCurrentVertex(currentVertex, this._distance, joinNormal.mul(-1, Vec2Pool.get()), 0, 0, false);
 
                 } else if (currentJoin === 'bevel' || currentJoin === 'fakeround') {
                     var lineTurnsLeft = (prevNormal.x * nextNormal.y - prevNormal.y * nextNormal.x) > 0;
@@ -862,14 +864,14 @@ Js.mixin(_p, {
                         var approxFractionalJoinNormal;
 
                         for (var m = 0; m < n; m++) {
-                            approxFractionalJoinNormal = nextNormal.mul((m + 1) / (n + 1)).addSelf(prevNormal).normalizeSelf();
+                            approxFractionalJoinNormal = nextNormal.mul((m + 1) / (n + 1), Vec2Pool.get()).addSelf(prevNormal).normalizeSelf();
                             this.addPieSliceVertex(currentVertex, this._distance, approxFractionalJoinNormal, lineTurnsLeft);
                         }
 
                         this.addPieSliceVertex(currentVertex, this._distance, joinNormal, lineTurnsLeft);
 
                         for (var k = n - 1; k >= 0; k--) {
-                            approxFractionalJoinNormal = prevNormal.mul((k + 1) / (n + 1)).addSelf(nextNormal).normalizeSelf();
+                            approxFractionalJoinNormal = prevNormal.mul((k + 1) / (n + 1), Vec2Pool.get()).addSelf(nextNormal).normalizeSelf();
                             this.addPieSliceVertex(currentVertex, this._distance, approxFractionalJoinNormal, lineTurnsLeft);
                         }
                     }
@@ -931,9 +933,9 @@ Js.mixin(_p, {
                 if (isSharpCorner && i < len - 1) {
                     var nextSegmentLength = currentVertex.mag(nextVertex);
                     if (nextSegmentLength > 2 * sharpCornerOffset) {
-                        var newCurrentVertex = currentVertex.add(nextVertex.sub(currentVertex).mulSelf(sharpCornerOffset / nextSegmentLength).roundSelf());
+                        var newCurrentVertex = currentVertex.add(nextVertex.sub(currentVertex, Vec2Pool.get()).mulSelf(sharpCornerOffset / nextSegmentLength).roundSelf(), Vec2Pool.get());
                         this._distance += newCurrentVertex.mag(currentVertex);
-                        this.addCurrentVertex(newCurrentVertex, this._distance, nextNormal.mul(1), 0, 0, false);
+                        this.addCurrentVertex(newCurrentVertex, this._distance, nextNormal.mul(1, Vec2Pool.get()), 0, 0, false);
                         currentVertex = newCurrentVertex;
                     }
                 }
@@ -944,14 +946,16 @@ Js.mixin(_p, {
             path.nIndices = this._indicesOffset - indicesOffset;
             path.nstroke = this._vertsOffset - vertsOffset;
         }
+
+        Vec2Pool.resetIndex();
     },
 
     addCurrentVertex: function (currentVertex, distance, normal, endLeft, endRight, round) {
         var tx = round ? 1 : 0;
         var extrude;
 
-        extrude = normal.clone();
-        if (endLeft) extrude.subSelf(normal.perp().mulSelf(endLeft));
+        extrude = normal.clone(Vec2Pool.get());
+        if (endLeft) extrude.subSelf(normal.perp(Vec2Pool.get()).mulSelf(endLeft));
         this.e3 = this.addVertex(currentVertex, extrude, tx, 0, endLeft, distance);
         if (this.e1 >= 0 && this.e2 >= 0) {
             this.addIndices(this.e1, this.e2, this.e3);
@@ -959,8 +963,8 @@ Js.mixin(_p, {
         this.e1 = this.e2;
         this.e2 = this.e3;
 
-        extrude = normal.mul(-1);
-        if (endRight) extrude.subSelf(normal.perp().mulSelf(endRight));
+        extrude = normal.mul(-1, Vec2Pool.get());
+        if (endRight) extrude.subSelf(normal.perp(Vec2Pool.get()).mulSelf(endRight));
         this.e3 = this.addVertex(currentVertex, extrude, tx, 1, -endRight, distance);
         if (this.e1 >= 0 && this.e2 >= 0) {
             this.addIndices(this.e1, this.e2, this.e3);
@@ -990,7 +994,7 @@ Js.mixin(_p, {
      */
     addPieSliceVertex: function (currentVertex, distance, extrude, lineTurnsLeft) {
         var ty = lineTurnsLeft ? 1 : 0;
-        extrude = extrude.mul(lineTurnsLeft ? -1 : 1);
+        extrude = extrude.mul(lineTurnsLeft ? -1 : 1, Vec2Pool.get());
 
         this.e3 = this.addVertex(currentVertex, extrude, 0, ty, 0, distance);
 
@@ -1017,10 +1021,14 @@ Js.mixin(_p, {
         float32Buffer[i + 1] = (point.y << 1) | ty;
 
         i = offset * 12;
+
+        var ex = EXTRUDE_SCALE * extrude.x;
+        var ey = EXTRUDE_SCALE * extrude.y;
+
         // a_data
         // add 128 to store an byte in an unsigned byte
-        uint8Buffer[i + 8] = /*Math.round*/((EXTRUDE_SCALE * extrude.x + 0.5) | 0) + 128;
-        uint8Buffer[i + 9] = /*Math.round*/((EXTRUDE_SCALE * extrude.y + 0.5) | 0) + 128;
+        uint8Buffer[i + 8] = /*Math.round*/((ex + (ex > 0 ? 0.5 : -0.5)) | 0) + 128;
+        uint8Buffer[i + 9] = /*Math.round*/((ey + (ey > 0 ? 0.5 : -0.5)) | 0) + 128;
         // Encode the -1/0/1 direction value into the first two bits of .z of a_data.
         // Combine it with the lower 6 bits of `linesofar` (shifted by 2 bites to make
         // room for the direction value). The upper 8 bits of `linesofar` are placed in

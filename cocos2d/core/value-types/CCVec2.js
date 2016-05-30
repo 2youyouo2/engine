@@ -66,7 +66,13 @@ JS.mixin(Vec2.prototype, {
      * @method clone
      * @return {Vec2}
      */
-    clone: function () {
+    clone: function (out) {
+        if (out) {
+            out.x = this.x;
+            out.y = this.y;
+            return out;
+        }
+        
         return new Vec2(this.x, this.y);
     },
 
@@ -521,8 +527,8 @@ JS.mixin(Vec2.prototype, {
 
     round: function (out) {
         out = out || new Vec2();
-        out.x = Math.round(out.x);
-        out.y = Math.round(out.y);
+        out.x = Math.round(this.x);
+        out.y = Math.round(this.y);
         return out;
     },
 
@@ -534,9 +540,8 @@ JS.mixin(Vec2.prototype, {
 
     perp: function (out) {
         out = out || new Vec2();
-        var y = out.y;
-        out.y = out.x;
-        out.x = -y;
+        out.y = this.x;
+        out.x = -this.y;
         return out;
     },
 
