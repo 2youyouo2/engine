@@ -138,6 +138,8 @@ Path.prototype.reset = function () {
     this.nIndices = 0;
     this.indicesOffset = 0;
 
+    this.lineWidth = 0;
+
     if (this.points) {
         this.points.length = 0;
     }
@@ -459,7 +461,6 @@ Js.mixin(_p, {
 
         var uniformLocations = this._uniformLocations;
 
-        gl.uniform1f(uniformLocations.u_linewidth, this.lineWidth / 2);
         gl.uniform1f(uniformLocations.u_gapwidth, 0/*0 / 2*/);
         gl.uniform1f(uniformLocations.u_antialiasing, 0.5 / 2);
         gl.uniform1f(uniformLocations.u_blur, 0.5);
@@ -474,6 +475,8 @@ Js.mixin(_p, {
             if (path.nIndices) {
                 var color = path.strokeColor;
                 gl.uniform4f(uniformLocations.u_color, color.r / 255, color.g / 255, color.b / 255, color.a / 255);
+                gl.uniform1f(uniformLocations.u_linewidth, path.lineWidth / 2);
+        
                 gl.drawElements(gl.TRIANGLES, path.nIndices, gl.UNSIGNED_SHORT, path.indicesOffset * 2);
 
                 cc.incrementGLDraws(path.nstroke);
@@ -690,6 +693,7 @@ Js.mixin(_p, {
             path.indicesOffset = indicesOffset;
             path.strokeOffset = vertsOffset;
 
+            path.lineWidth = this.lineWidth;
             path.strokeColor = this._strokeColor;
 
             var len = vertices.length;
