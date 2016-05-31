@@ -717,19 +717,21 @@ Js.mixin(_p, {
             // a line may not have coincident points
             if (len === 2 && closed) return;
 
-            this._distance = 0;
-
             var beginCap = cap,
                 endCap = closed ? 'butt' : cap,
                 startOfLine = true,
-                currentVertex, prevVertex, nextVertex, prevNormal, nextNormal, offsetA, offsetB;
+                currentVertex, prevVertex, nextVertex, offsetA, offsetB;
+
+            var prevNormal = Vec2Pool.get();
+            var nextNormal = Vec2Pool.get();
+            var joinNormal = Vec2Pool.get();
 
             // the last three vertices added
             this.e1 = this.e2 = this.e3 = -1;
 
             if (closed) {
                 currentVertex = vertices[len - 2];
-                nextNormal = firstVertex.sub(currentVertex, Vec2Pool.get()).normalizeSelf().perpSelf();
+                firstVertex.sub(currentVertex, nextNormal).normalizeSelf().perpSelf();
             }
 
             for (var i = 0; i < len; i++) {
@@ -741,7 +743,7 @@ Js.mixin(_p, {
                 // if two consecutive vertices exist, skip the current one
                 if (nextVertex && vertices[i].equals(nextVertex)) continue;
 
-                if (nextNormal) prevNormal = nextNormal;
+                if (nextNormal) nextNormal.clone(prevNormal);
                 if (currentVertex) prevVertex = currentVertex;
 
                 currentVertex = vertices[i];
@@ -781,8 +783,7 @@ Js.mixin(_p, {
                     var prevSegmentLength = currentVertex.mag(prevVertex);
                     if (prevSegmentLength > 2 * sharpCornerOffset) {
                         var newPrevVertex = currentVertex.sub(currentVertex.sub(prevVertex, Vec2Pool.get()).mulSelf(sharpCornerOffset / prevSegmentLength).roundSelf(), Vec2Pool.get());
-                        this._distance += newPrevVertex.mag(prevVertex);
-                        this.addCurrentVertex(newPrevVertex, this._distance, prevNormal.mul(1, Vec2Pool.get()), 0, 0, false);
+                        this.addCurrentVertex(newPrevVertex, prevNormal.mul(1, Vec2Pool.get()), 0, 0, false);
                         prevVertex = newPrevVertex;
                     }
                 }
@@ -813,13 +814,10 @@ Js.mixin(_p, {
                     if (miterLength < miterLimit) currentJoin = 'miter';
                 }
 
-                // Calculate how far along the line the currentVertex is
-                if (prevVertex) this._distance += currentVertex.mag(prevVertex);
-
                 if (currentJoin === 'miter') {
 
                     joinNormal.mulSelf(miterLength);
-                    this.addCurrentVertex(currentVertex, this._distance, joinNormal, 0, 0, false);
+                    this.addCurrentVertex(currentVertex, joinNormal, 0, 0, false);
 
                 } else if (currentJoin === 'flipbevel') {
                     // miter is too big, flip the direction to make a beveled join
@@ -833,8 +831,8 @@ Js.mixin(_p, {
                         var bevelLength = miterLength * prevNormal.add(nextNormal, Vec2Pool.get()).mag() / prevNormal.sub(nextNormal, Vec2Pool.get()).mag();
                         joinNormal.perpSelf().mulSelf(bevelLength * direction);
                     // }
-                    this.addCurrentVertex(currentVertex, this._distance, joinNormal, 0, 0, false);
-                    this.addCurrentVertex(currentVertex, this._distance, joinNormal.mul(-1, Vec2Pool.get()), 0, 0, false);
+                    this.addCurrentVertex(currentVertex, joinNormal, 0, 0, false);
+                    this.addCurrentVertex(currentVertex, joinNormal.mul(-1, Vec2Pool.get()), 0, 0, false);
 
                 } else if (currentJoin === 'bevel' || currentJoin === 'fakeround') {
                     var lineTurnsLeft = (prevNormal.x * nextNormal.y - prevNormal.y * nextNormal.x) > 0;
@@ -849,7 +847,7 @@ Js.mixin(_p, {
 
                     // Close previous segment with a bevel
                     if (!startOfLine) {
-                        this.addCurrentVertex(currentVertex, this._distance, prevNormal, offsetA, offsetB, false);
+                        this.addCurrentVertex(currentVertex, prevNormal, offsetA, offsetB, false);
                     }
 
                     if (currentJoin === 'fakeround') {
@@ -865,38 +863,38 @@ Js.mixin(_p, {
 
                         for (var m = 0; m < n; m++) {
                             approxFractionalJoinNormal = nextNormal.mul((m + 1) / (n + 1), Vec2Pool.get()).addSelf(prevNormal).normalizeSelf();
-                            this.addPieSliceVertex(currentVertex, this._distance, approxFractionalJoinNormal, lineTurnsLeft);
+                            this.addPieSliceVertex(currentVertex, approxFractionalJoinNormal, lineTurnsLeft);
                         }
 
-                        this.addPieSliceVertex(currentVertex, this._distance, joinNormal, lineTurnsLeft);
+                        this.addPieSliceVertex(currentVertex, joinNormal, lineTurnsLeft);
 
                         for (var k = n - 1; k >= 0; k--) {
                             approxFractionalJoinNormal = prevNormal.mul((k + 1) / (n + 1), Vec2Pool.get()).addSelf(nextNormal).normalizeSelf();
-                            this.addPieSliceVertex(currentVertex, this._distance, approxFractionalJoinNormal, lineTurnsLeft);
+                            this.addPieSliceVertex(currentVertex, approxFractionalJoinNormal, lineTurnsLeft);
                         }
                     }
 
                     // Start next segment
                     if (nextVertex) {
-                        this.addCurrentVertex(currentVertex, this._distance, nextNormal, -offsetA, -offsetB, false);
+                        this.addCurrentVertex(currentVertex, nextNormal, -offsetA, -offsetB, false);
                     }
 
                 } else if (currentJoin === 'butt') {
                     if (!startOfLine) {
                         // Close previous segment with a butt
-                        this.addCurrentVertex(currentVertex, this._distance, prevNormal, 0, 0, false);
+                        this.addCurrentVertex(currentVertex, prevNormal, 0, 0, false);
                     }
 
                     // Start next segment with a butt
                     if (nextVertex) {
-                        this.addCurrentVertex(currentVertex, this._distance, nextNormal, 0, 0, false);
+                        this.addCurrentVertex(currentVertex, nextNormal, 0, 0, false);
                     }
 
                 } else if (currentJoin === 'square') {
 
                     if (!startOfLine) {
                         // Close previous segment with a square cap
-                        this.addCurrentVertex(currentVertex, this._distance, prevNormal, 1, 1, false);
+                        this.addCurrentVertex(currentVertex, prevNormal, 1, 1, false);
 
                         // The segment is done. Unset vertices to disconnect segments.
                         this.e1 = this.e2 = -1;
@@ -904,17 +902,17 @@ Js.mixin(_p, {
 
                     // Start next segment
                     if (nextVertex) {
-                        this.addCurrentVertex(currentVertex, this._distance, nextNormal, -1, -1, false);
+                        this.addCurrentVertex(currentVertex, nextNormal, -1, -1, false);
                     }
 
                 } else if (currentJoin === 'round') {
 
                     if (!startOfLine) {
                         // Close previous segment with butt
-                        this.addCurrentVertex(currentVertex, this._distance, prevNormal, 0, 0, false);
+                        this.addCurrentVertex(currentVertex, prevNormal, 0, 0, false);
 
                         // Add round cap or linejoin at end of segment
-                        this.addCurrentVertex(currentVertex, this._distance, prevNormal, 1, 1, true);
+                        this.addCurrentVertex(currentVertex, prevNormal, 1, 1, true);
 
                         // The segment is done. Unset vertices to disconnect segments.
                         this.e1 = this.e2 = -1;
@@ -924,9 +922,9 @@ Js.mixin(_p, {
                     // Start next segment with a butt
                     if (nextVertex) {
                         // Add round cap before first segment
-                        this.addCurrentVertex(currentVertex, this._distance, nextNormal, -1, -1, true);
+                        this.addCurrentVertex(currentVertex, nextNormal, -1, -1, true);
 
-                        this.addCurrentVertex(currentVertex, this._distance, nextNormal, 0, 0, false);
+                        this.addCurrentVertex(currentVertex, nextNormal, 0, 0, false);
                     }
                 }
 
@@ -934,8 +932,7 @@ Js.mixin(_p, {
                     var nextSegmentLength = currentVertex.mag(nextVertex);
                     if (nextSegmentLength > 2 * sharpCornerOffset) {
                         var newCurrentVertex = currentVertex.add(nextVertex.sub(currentVertex, Vec2Pool.get()).mulSelf(sharpCornerOffset / nextSegmentLength).roundSelf(), Vec2Pool.get());
-                        this._distance += newCurrentVertex.mag(currentVertex);
-                        this.addCurrentVertex(newCurrentVertex, this._distance, nextNormal.mul(1, Vec2Pool.get()), 0, 0, false);
+                        this.addCurrentVertex(newCurrentVertex, nextNormal.mul(1, Vec2Pool.get()), 0, 0, false);
                         currentVertex = newCurrentVertex;
                     }
                 }
@@ -951,36 +948,40 @@ Js.mixin(_p, {
 
     },
 
-    addCurrentVertex: function (currentVertex, distance, normal, endLeft, endRight, round) {
+    addCurrentVertex: function (currentVertex, normal, endLeft, endRight, round) {
         var tx = round ? 1 : 0;
-        var extrude;
 
-        extrude = normal.clone(Vec2Pool.get());
-        if (endLeft) extrude.subSelf(normal.perp(Vec2Pool.get()).mulSelf(endLeft));
-        this.e3 = this.addVertex(currentVertex, extrude, tx, 0, endLeft, distance);
+        // 1st step
+        var extrudex = normal.x;
+        var extrudey = normal.y;
+
+        if (endLeft) {
+            // extrude.subSelf(normal.perp(Vec2Pool.get()).mulSelf(endLeft));
+            extrudex = extrudex + (normal.y * endLeft);
+            extrudey = extrudey - (normal.x * endLeft);
+        }
+        this.e3 = this.addVertex(currentVertex, extrudex, extrudey, tx, 0, endLeft);
         if (this.e1 >= 0 && this.e2 >= 0) {
             this.addIndices(this.e1, this.e2, this.e3);
         }
         this.e1 = this.e2;
         this.e2 = this.e3;
 
-        extrude = normal.mul(-1, Vec2Pool.get());
-        if (endRight) extrude.subSelf(normal.perp(Vec2Pool.get()).mulSelf(endRight));
-        this.e3 = this.addVertex(currentVertex, extrude, tx, 1, -endRight, distance);
+        // 2nd step
+        extrudex = -normal.x;
+        extrudey = -normal.y;
+
+        if (endRight) {
+            // extrude.subSelf(normal.perp(Vec2Pool.get()).mulSelf(endRight));
+            extrudex = extrudex + (normal.y * endRight);
+            extrudey = extrudey - (normal.x * endRight);
+        }
+        this.e3 = this.addVertex(currentVertex, extrudex, extrudey, tx, 1, -endRight);
         if (this.e1 >= 0 && this.e2 >= 0) {
             this.addIndices(this.e1, this.e2, this.e3);
         }
         this.e1 = this.e2;
         this.e2 = this.e3;
-
-        // There is a maximum "distance along the line" that we can store in the buffers.
-        // When we get close to the distance, reset it to zero and add the vertex again with
-        // a distance of zero. The max distance is determined by the number of bits we allocate
-        // to `linesofar`.
-        if (distance > MAX_LINE_DISTANCE / 2) {
-            this._distance = 0;
-            this.addCurrentVertex(currentVertex, this._distance, normal, endLeft, endRight, round);
-        }
     },
 
     /**
@@ -993,11 +994,13 @@ Js.mixin(_p, {
      * @param {boolean} whether the line is turning left or right at this angle
      * @private
      */
-    addPieSliceVertex: function (currentVertex, distance, extrude, lineTurnsLeft) {
+    addPieSliceVertex: function (currentVertex, extrude, lineTurnsLeft) {
         var ty = lineTurnsLeft ? 1 : 0;
-        extrude = extrude.mul(lineTurnsLeft ? -1 : 1, Vec2Pool.get());
 
-        this.e3 = this.addVertex(currentVertex, extrude, 0, ty, 0, distance);
+        var extrudex = extrude.x * (lineTurnsLeft ? -1 : 1);
+        var extrudey = extrude.y * (lineTurnsLeft ? -1 : 1);
+
+        this.e3 = this.addVertex(currentVertex, extrudex, extrudey, 0, ty, 0);
 
         if (this.e1 >= 0 && this.e2 >= 0) {
             this.addIndices(this.e1, this.e2, this.e3);
@@ -1010,7 +1013,8 @@ Js.mixin(_p, {
         }
     },
 
-    addVertex: function (point, extrude, tx, ty, dir, linesofar) {
+    addVertex: function (point, extrudex, extrudey, tx, ty, dir) {
+        var linesofar = 0;
         var uint8Buffer = this._vertsUint8Buffer;
         var float32Buffer = this._vertsFloat32Buffer;
 
@@ -1023,8 +1027,8 @@ Js.mixin(_p, {
 
         i = offset * 12;
 
-        var ex = EXTRUDE_SCALE * extrude.x;
-        var ey = EXTRUDE_SCALE * extrude.y;
+        var ex = EXTRUDE_SCALE * extrudex;
+        var ey = EXTRUDE_SCALE * extrudey;
 
         // a_data
         // add 128 to store an byte in an unsigned byte
