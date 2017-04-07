@@ -55,6 +55,18 @@ cc.FilterNode = _ccsg.Node.extend({
 
     returnTexture: function (texture) {
         this._renderCmd.returnTexture(texture);
+    },
+
+    visit: function (parentCmd) {
+        if (cc._renderType === cc.game.RENDER_TYPE_WEBGL) {
+            cc.renderer.pushRenderCommand(this._renderCmd._beginCommand);
+        }
+
+        _ccsg.Node.prototype.visit.call(this, parentCmd);
+
+        if (cc._renderType === cc.game.RENDER_TYPE_WEBGL) {
+            cc.renderer.pushRenderCommand(this._renderCmd._endCommand);
+        }
     }
 });
 

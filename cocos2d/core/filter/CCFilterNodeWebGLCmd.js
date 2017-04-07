@@ -28,33 +28,6 @@ var proto = WebGLRenderCmd.prototype = Object.create(_ccsg.Node.WebGLRenderCmd.p
 proto.constructor = WebGLRenderCmd;
 
 
-proto.visit = function (parentCmd) {
-    var node = this._node, renderer = cc.renderer;
-
-    parentCmd = parentCmd || this.getParentRenderCmd();
-    if (parentCmd) {
-        this._curLevel = parentCmd._curLevel + 1;
-    }
-    this._propagateFlagsDown(parentCmd);
-
-    // quick return if not visible
-    if (!node._visible)
-        return;
-
-    if (isNaN(node._customZ)) {
-        node._vertexZ = renderer.assignedZ;
-        renderer.assignedZ += renderer.assignedZStep;
-    }
-
-    this._syncStatus(parentCmd);
-
-    cc.renderer.pushRenderCommand(this._beginCommand);
-
-    this.visitChildren();
-
-    cc.renderer.pushRenderCommand(this._endCommand);
-};
-
 proto.updateState = function () {
     var locQuad = this._quad;
 
