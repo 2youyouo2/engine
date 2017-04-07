@@ -35,6 +35,7 @@ if (!CC_EDITOR || !Editor.isMainProcess) {
     require('./collider');
     require('./physics');
     require('./camera/CCCamera');
+    require('./filter');
 }
 
 require('./base-ui/CCWidgetManager');
