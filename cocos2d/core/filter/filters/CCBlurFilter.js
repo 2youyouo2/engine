@@ -16,74 +16,34 @@ var BlurFilter = {
     },
 
     frag: function () {
-        var frag = [
-        '#ifdef GL_ES',
-        'precision mediump float;',
-        '#endif',
+        return `
+        #ifdef GL_ES
+        precision mediump float;
+        #endif
         
-        'varying vec2 v_texcoord;',
-        'varying vec4 v_color;',
+        varying vec2 v_texcoord;
+        varying vec4 v_color;
 
-        'uniform vec2 resolution;',
-        'uniform vec2 blur;',
+        uniform vec2 resolution;
+        uniform vec2 blur;
 
         // https://github.com/Jam3/glsl-fast-gaussian-blur
-        'vec4 blur9(sampler2D image, vec2 uv, vec2 resolution, vec2 direction) {',
-            'vec4 color = vec4(0.0);',
-            'vec2 off1 = vec2(1.3846153846) * direction;',
-            'vec2 off2 = vec2(3.2307692308) * direction;',
-            'color += texture2D(image, uv) * 0.2270270270;',
-            'color += texture2D(image, uv + (off1 / resolution)) * 0.3162162162;',
-            'color += texture2D(image, uv - (off1 / resolution)) * 0.3162162162;',
-            'color += texture2D(image, uv + (off2 / resolution)) * 0.0702702703;',
-            'color += texture2D(image, uv - (off2 / resolution)) * 0.0702702703;',
-            'return color;',
-        '}',
+        vec4 blur9(sampler2D image, vec2 uv, vec2 resolution, vec2 direction) {
+            vec4 color = vec4(0.0);
+            vec2 off1 = vec2(1.3846153846) * direction;
+            vec2 off2 = vec2(3.2307692308) * direction;
+            color += texture2D(image, uv) * 0.2270270270;
+            color += texture2D(image, uv + (off1 / resolution)) * 0.3162162162;
+            color += texture2D(image, uv - (off1 / resolution)) * 0.3162162162;
+            color += texture2D(image, uv + (off2 / resolution)) * 0.0702702703;
+            color += texture2D(image, uv - (off2 / resolution)) * 0.0702702703;
+            return color;
+        }
 
-        'void main(void) {',
-            'gl_FragColor = blur9(CC_Texture0, v_texcoord, resolution, blur);',
-        '}'
-        ].join('\n');
-
-        // var radius = this.uniforms.radius.value;
-        // if (radius | 0 === radius) {
-        //     radius = radius + '.0';
-        // }
-
-        // var frag = [
-        // '#ifdef GL_ES',
-        // 'precision mediump float;',
-        // '#endif',
-        
-        // 'varying vec2 v_texcoord;',
-        // 'varying vec4 v_color;',
-
-        // cc.sys.isNative ?
-        // 'uniform float radius;' : 'const float radius = '+radius+';',
-
-        // 'uniform vec2 resolution;',
-
-        // 'void main(void) {',
-        //     'vec4 col = vec4(0);',
-        //     'vec2 unit = 1.0 / resolution.xy;',
-
-        //     'float count = 0.0;',
-
-        //     'for(float x = -radius; x <= radius; x ++)',
-        //     '{',
-        //         'for(float y = -radius; y <= radius; y ++)',
-        //         '{',
-        //             'float weight = (radius - abs(x)) * (radius - abs(y));',
-        //             'col += texture2D(CC_Texture0, v_texcoord + vec2(x * unit.x, y * unit.y)) * weight;',
-        //             'count += weight;',
-        //         '}',
-        //     '}',
-
-        //     'gl_FragColor = col / count;',
-        // '}',
-        // ].join('\n');
-
-        return frag;
+        void main(void) {
+            gl_FragColor = blur9(CC_Texture0, v_texcoord, resolution, blur);
+        }
+        `;
     },
 
     draw: function (filter, renderer, input, output) {

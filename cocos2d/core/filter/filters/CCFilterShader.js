@@ -1,13 +1,39 @@
 var tempArray = [];
 
+var Uniform = cc.Class({
+    name: 'cc.Uniform',
+
+    properties: {
+        name: '',
+        type: '1f',
+        value: []
+    },
+
+    statics: {
+        create: function (name, type, value) {
+            var u = new Uniform();
+            u.name = name;
+            u.type = type;
+            if (!Array.isArray(value) || type[type.length - 1] === 'v') {
+                u.value = [value];
+            }
+            else {
+                u.value = value.concat();
+            }
+            return u;
+        }
+    }
+});
+
+cc.Uniform = Uniform;
+
 var FilterShader = cc.Class({
     name: 'cc.FilterShader',
 
     properties: {
         _uniforms: {
-            default: function () {
-                return {};
-            }
+            default: [],
+            type: Uniform
         },
 
         _filterType: '',
@@ -19,7 +45,7 @@ var FilterShader = cc.Class({
             set: function (value) {
                 this._uniforms = value;
             },
-            type: Object
+            type: Uniform
         },
 
         filterType: {
@@ -32,7 +58,11 @@ var FilterShader = cc.Class({
                 var filter = cc.filterShaders[this._filterType];
                 if (!filter) return;
 
-                this.uniforms = filter.uniforms();
+                this._uniforms.length = 0;
+                var uniforms = filter.uniforms();
+                for (var key in uniforms) {
+                    this._uniforms.push( Uniform.create(key, uniforms[key].type, uniforms[key].value) );
+                }
                 
                 this.init(true);
             },
@@ -75,13 +105,13 @@ var FilterShader = cc.Class({
         // init inner uniforms
         this._innerUniforms = {};
 
-        var uniforms = this.uniforms;
-        for (var key in this.uniforms) {
-            var uniform = uniforms[key];
+        var uniforms = this._uniforms;
+        for (var i = 0 ; i < uniforms.length; i++) {
+            var uniform = uniforms[i];
             
             var _uniform = {};
             _uniform.data = uniform;
-            _uniform.location = shader.getUniformLocationForName(key);
+            _uniform.location = shader.getUniformLocationForName(uniform.name);
             
             var funcName = 'setUniformLocationWith' + uniform.type;
             _uniform.func = shader[funcName];
@@ -90,7 +120,7 @@ var FilterShader = cc.Class({
                 cc.warn('Can\'t find uniform function [%s] for type [%s].', funcName, uniform.type);
             }
 
-            this._innerUniforms[key] = _uniform;
+            this._innerUniforms[uniform.name] = _uniform;
         }
 
         // init resolution location
@@ -163,37 +193,37 @@ var FilterShader = cc.Class({
     },
 
     vert: function () {
-        return [
-        'attribute vec4 a_position;',
-        'attribute vec2 a_texcoord;',
-        'attribute vec4 a_color;',
+        return `
+        attribute vec4 a_position;
+        attribute vec2 a_texcoord;
+        attribute vec4 a_color;
 
-        'varying vec4 v_color;',
-        'varying vec2 v_texcoord;',
-        '',
-        'void main()',
-        '{',
-        '   v_color = a_color;',
-        '   v_texcoord = a_texcoord;',
-        '   gl_Position = CC_PMatrix * a_position;',
-        '}'
-        ].join('\n');
+        varying vec4 v_color;
+        varying vec2 v_texcoord;
+        
+        void main()
+        {
+           v_color = a_color;
+           v_texcoord = a_texcoord;
+           gl_Position = CC_PMatrix * a_position;
+        }
+        `;
     },
 
     frag: function () {
-        return [
-        '#ifdef GL_ES',
-        'precision mediump float;',
-        '#endif',
+        return `
+        #ifdef GL_ES
+        precision mediump float;
+        #endif
 
-        'varying vec2 v_texcoord;',
-        'varying vec4 v_color;',
-        'uniform float blur;',
+        varying vec2 v_texcoord;
+        varying vec4 v_color;
+        uniform float blur;
 
-        'void main(void) {',
-        '   gl_FragColor = texture2D(CC_Texture0, v_texcoord);',
-        '}'
-        ].join('\n');
+        void main(void) {
+           gl_FragColor = texture2D(CC_Texture0, v_texcoord);
+        }
+        `;
     },
 
     clone: function () {
