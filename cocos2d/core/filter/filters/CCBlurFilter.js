@@ -49,7 +49,7 @@ var BlurFilter = {
     draw: function (filter, renderer, input, output) {
         var shader = filter._shader;
         var location = filter._innerUniforms.blur.location;
-        var blur = [4,4];//filter.uniforms.blur.value;
+        var blur = filter._innerUniforms.blur.data.value;
         var iterations = 3;//filter.iterations;
 
         var s = cc.director.getScene();

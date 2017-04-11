@@ -38,6 +38,8 @@ var FilterShader = cc.Class({
 
         _filterType: '',
 
+        enabled: true,
+
         uniforms: {
             get: function () {
                 return this._uniforms;

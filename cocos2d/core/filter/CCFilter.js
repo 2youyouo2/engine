@@ -87,7 +87,7 @@ var Filter = cc.Class({
         for (var i = 0, l = filters.length; i < l; i++) {
             var filter = filters[i];
 
-            if (!filter.valid()) continue;
+            if (!filter.valid() || !filter.enabled) continue;
 
             var inputName = filter.input;
 
