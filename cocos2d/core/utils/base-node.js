@@ -105,6 +105,9 @@ function findChildComponents(children, constructor, components) {
  *
  * @class _BaseNode
  * @extends Object
+ * @uses EventTarget
+ * @constructor
+ * @param {String} [name]
  * @private
  */
 var BaseNode = cc.Class({
@@ -186,16 +189,6 @@ var BaseNode = cc.Class({
             },
         },
 
-        /**
-         * !#en The parent of the node.
-         * !#zh 该节点的父节点。
-         * @property parent
-         * @type {Node}
-         * @default null
-         * @example
-         * node.parent = newNode;
-         */
-
         _id: {
             default: '',
             editorOnly: true
@@ -203,7 +196,7 @@ var BaseNode = cc.Class({
 
         /**
          * !#en The uuid for editor, will be stripped before building project.
-         * !#zh 用于编辑器使用的 uuid，在构建项目之前将会被剔除。
+         * !#zh 主要用于编辑器的 uuid，在编辑器下可用于持久化存储，在项目构建之后将变成自增的 id。
          * @property uuid
          * @type {String}
          * @readOnly
@@ -313,6 +306,10 @@ var BaseNode = cc.Class({
 
     },
 
+    /**
+     * @method constructor
+     * @param {String} [name]
+     */
     ctor (name) {
         this._name = typeof name !== 'undefined' ? name : 'New Node';
 
@@ -338,6 +335,15 @@ var BaseNode = cc.Class({
         this._tag = tag;
     },
 
+    /**
+     * !#en The parent of the node.
+     * !#zh 该节点的父节点。
+     * @property parent
+     * @type {Node}
+     * @default null
+     * @example
+     * node.parent = newNode;
+     */
     getParent () {
         return this._parent;
     },
@@ -408,9 +414,7 @@ var BaseNode = cc.Class({
      * node.attr(attrs);
      */
     attr (attrs) {
-        for (var key in attrs) {
-            this[key] = attrs[key];
-        }
+        Js.mixin(this, attrs);
     },
 
     // composition: GET
@@ -483,6 +487,7 @@ var BaseNode = cc.Class({
     },
 
     // composition: ADD
+
     addChild (child) {
 
         if (CC_DEV && !(child instanceof cc._BaseNode)) {
@@ -494,6 +499,22 @@ var BaseNode = cc.Class({
         // invokes the parent setter
         child.setParent(this);
 
+    },
+
+    /**
+     * !#en
+     * Inserts a child to the node at a specified index.
+     * !#zh
+     * 插入子节点到指定位置
+     * @method insertChild
+     * @param {Node} child - the child node to be inserted
+     * @param {Number} siblingIndex - the sibling index to place the child in
+     * @example
+     * node.insertChild(child, 2);
+     */
+    insertChild (child, siblingIndex) {
+        child.parent = this;
+        child.setSiblingIndex(siblingIndex);
     },
 
     // HIERARCHY METHODS
@@ -548,12 +569,12 @@ var BaseNode = cc.Class({
 
     /**
      * !#en
-     * Remove itself from its parent node. If cleanup is true, then also remove all actions and callbacks. <br/>
-     * If the cleanup parameter is not passed, it will force a cleanup. <br/>
+     * Remove itself from its parent node. If cleanup is `true`, then also remove all events and actions. <br/>
+     * If the cleanup parameter is not passed, it will force a cleanup, so it is recommended that you always pass in the `false` parameter when calling this API.<br/>
      * If the node orphan, then nothing happens.
      * !#zh
-     * 从父节点中删除一个节点。cleanup 参数为 true，那么在这个节点上所有的动作和回调都会被删除，反之则不会。<br/>
-     * 如果不传入 cleanup 参数，默认是 true 的。<br/>
+     * 从父节点中删除该节点。如果不传入 cleanup 参数或者传入 `true`，那么这个节点上所有绑定的事件、action 都会被删除。<br/>
+     * 因此建议调用这个 API 时总是传入 `false` 参数。<br/>
      * 如果这个节点是一个孤节点，那么什么都不会发生。
      * @method removeFromParent
      * @param {Boolean} [cleanup=true] - true if all actions and callbacks on this node should be removed, false otherwise.
@@ -698,6 +719,9 @@ var BaseNode = cc.Class({
      * var sprite = node.getComponent(cc.Sprite);
      * // get custom test calss.
      * var test = node.getComponent("Test");
+     * @typescript
+     * getComponent<T extends Component>(type: {prototype: T}): T
+     * getComponent(className: string): any
      */
     getComponent (typeOrClassName) {
         var constructor = getConstructor(typeOrClassName);
@@ -716,6 +740,9 @@ var BaseNode = cc.Class({
      * @example
      * var sprites = node.getComponents(cc.Sprite);
      * var tests = node.getComponents("Test");
+     * @typescript
+     * getComponents<T extends Component>(type: {prototype: T}): T[]
+     * getComponents(className: string): any[]
      */
     getComponents (typeOrClassName) {
         var constructor = getConstructor(typeOrClassName), components = [];
@@ -734,6 +761,9 @@ var BaseNode = cc.Class({
      * @example
      * var sprite = node.getComponentInChildren(cc.Sprite);
      * var Test = node.getComponentInChildren("Test");
+     * @typescript
+     * getComponentInChildren<T extends Component>(type: {prototype: T}): T
+     * getComponentInChildren(className: string): any
      */
     getComponentInChildren (typeOrClassName) {
         var constructor = getConstructor(typeOrClassName);
@@ -752,6 +782,9 @@ var BaseNode = cc.Class({
      * @example
      * var sprites = node.getComponentsInChildren(cc.Sprite);
      * var tests = node.getComponentsInChildren("Test");
+     * @typescript
+     * getComponentsInChildren<T extends Component>(type: {prototype: T}): T[]
+     * getComponentsInChildren(className: string): any[]
      */
     getComponentsInChildren (typeOrClassName) {
         var constructor = getConstructor(typeOrClassName), components = [];
@@ -785,6 +818,9 @@ var BaseNode = cc.Class({
      * @example
      * var sprite = node.addComponent(cc.Sprite);
      * var test = node.addComponent("Test");
+     * @typescript
+     * addComponent<T extends Component>(type: {new(): T}): T
+     * addComponent(className: string): any
      */
     addComponent (typeOrClassName) {
 
@@ -1184,9 +1220,9 @@ var BaseNode = cc.Class({
 
     onRestore: CC_EDITOR && function () {
         // check activity state
-        var shouldActiveInHierarchy = (this._parent && this._parent._activeInHierarchy && this._active);
-        if (this._activeInHierarchy !== shouldActiveInHierarchy) {
-            cc.director._nodeActivator.activateNode(this, shouldActiveInHierarchy);
+        var shouldActiveNow = this._active && !!(this._parent && this._parent._activeInHierarchy);
+        if (this._activeInHierarchy !== shouldActiveNow) {
+            cc.director._nodeActivator.activateNode(this, shouldActiveNow);
         }
     },
 });
@@ -1214,6 +1250,24 @@ if(CC_EDITOR) {
 var SameNameGetSets = ['name', 'children', 'childrenCount',];
 Misc.propertyDefine(BaseNode, SameNameGetSets, {});
 
+if (CC_DEV) {
+    // promote debug info
+    JS.get(BaseNode.prototype, ' INFO ', function () {
+        var path = '';
+        var node = this;
+        while (node && !(node instanceof cc.Scene)) {
+            if (path) {
+                path = node.name + '/' + path;
+            }
+            else {
+                path = node.name;
+            }
+            node = node._parent;
+        }
+        return this.name + ', path: ' + path;
+    });
+}
+
 /**
  * !#en
  * Note: This event is only emitted from the top most node whose active value did changed,
@@ -1221,7 +1275,7 @@ Misc.propertyDefine(BaseNode, SameNameGetSets, {});
  * !#zh
  * 注意：此节点激活时，此事件仅从最顶部的节点发出。
  * @event active-in-hierarchy-changed
- * @param {Event} event
+ * @param {Event.EventCustom} event
  */
 
 cc._BaseNode = module.exports = BaseNode;

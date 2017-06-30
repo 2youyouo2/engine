@@ -56,11 +56,13 @@ function equalClips (clip1, clip2) {
  *  - finished : 动画播放完成时
  * 
  * @class Animation
- * @extends CCComponent
+ * @extends Component
+ * @uses EventTarget
  */
 var Animation = cc.Class({
     name: 'cc.Animation',
     extends: require('./CCComponent'),
+    mixins: [cc.EventTarget],
 
     editor: CC_EDITOR && {
         menu: 'i18n:MAIN_MENU.component.others/Animation',
@@ -174,11 +176,15 @@ var Animation = cc.Class({
     },
 
     onEnable: function () {
-        this.resume();
+        if (this._animator) {
+            this._animator.resume();
+        }
     },
 
     onDisable: function () {
-        this.pause();
+        if (this._animator) {
+            this._animator.pause();
+        }
     },
 
     onDestroy: function () {
@@ -212,16 +218,7 @@ var Animation = cc.Class({
      */
     play: function (name, startTime) {
         var state = this.playAdditive(name, startTime);
-        var playingStates = this._animator.playingAnims;
-
-        for (var i = playingStates.length; i >= 0; i--) {
-            if (playingStates[i] === state) {
-                continue;
-            }
-
-            this._animator.stopState(playingStates[i]);
-        }
-
+        this._animator.stopStatesExcept(state);
         return state;
     },
 
@@ -243,9 +240,11 @@ var Animation = cc.Class({
     playAdditive: function (name, startTime) {
         this._init();
         var state = this.getAnimationState(name || (this._defaultClip && this._defaultClip.name));
-        if (state) {
-            var animator = this._animator;
 
+        if (state) {
+            this.enabled = true;
+            
+            var animator = this._animator;
             if (animator.isPlaying && state.isPlaying) {
                 if (state.isPaused) {
                     animator.resumeState(state);
@@ -303,7 +302,7 @@ var Animation = cc.Class({
             }
         }
         else {
-            this._animator.pause();
+            this.enabled = false;
         }
     },
 
@@ -324,7 +323,7 @@ var Animation = cc.Class({
             }
         }
         else {
-            this._animator.resume();
+            this.enabled = true;
         }
     },
 
@@ -429,7 +428,7 @@ var Animation = cc.Class({
      * 但是如果 force 参数为 true，则会强制停止该动画，然后移除该动画剪辑和相关的动画。这时候如果 clip 是 defaultClip，defaultClip 将会被重置为 null。
      * @method removeClip
      * @param {AnimationClip} clip
-     * @param {Boolean} force If force is true, then will always remove the clip and any animation states based on it.
+     * @param {Boolean} [force=false] - If force is true, then will always remove the clip and any animation states based on it.
      */
     removeClip: function (clip, force) {
         if (!clip) {
@@ -508,13 +507,17 @@ var Animation = cc.Class({
      * @param {String} type - A string representing the event type to listen for.
      * @param {Function} callback - The callback that will be invoked when the event is dispatched.
      *                              The callback is ignored if it is a duplicate (the callbacks are unique).
-     * @param {Event} callback.param event
-     * @param {Object} target - The target to invoke the callback, can be null
-     * @param {Boolean} useCapture - When set to true, the capture argument prevents callback
+     * @param {Event} callback.event event
+     * @param {Object} [target] - The target to invoke the callback, can be null
+     * @param {Boolean} [useCapture=false] - When set to true, the capture argument prevents callback
      *                              from being invoked when the event's eventPhase attribute value is BUBBLING_PHASE.
      *                              When false, callback will NOT be invoked when event's eventPhase attribute value is CAPTURING_PHASE.
      *                              Either way, callback will be invoked when event's eventPhase attribute value is AT_TARGET.
      *
+     * @return {Function} - Just returns the incoming callback so you can save the anonymous function easier.
+     * @typescript
+     * on(type: string, callback: (event: Event.EventCustom) => void, target?: any, useCapture?: boolean): (event: Event.EventCustom) => void
+     * on<T>(type: string, callback: (event: T) => void, target?: any, useCapture?: boolean): (event: T) => void
      * @example
      * onPlay: function (event) {
      *     var state = event.detail;    // state instanceof cc.AnimationState
@@ -522,7 +525,7 @@ var Animation = cc.Class({
      * }
      * 
      * // register event to all animation
-     * animation.on('', 'play',      this.onPlay,        this);
+     * animation.on('play', this.onPlay, this);
      */
     on: function (type, callback, target, useCapture) {
         this._init();
@@ -538,12 +541,10 @@ var Animation = cc.Class({
             }
         }
 
-        var anims = this._animator.playingAnims;
-        for (var j = 0, jj = anims.length; j < jj; j++) {
-            anims[j].on(type, callback, target, useCapture);
-        }
-
+        this._animator.on(type, callback, target, useCapture);
         listeners.push([type, callback, target, useCapture]);
+
+        return callback;
     },
 
 
@@ -555,15 +556,15 @@ var Animation = cc.Class({
      * @method off
      * @param {String} type - A string representing the event type being removed.
      * @param {Function} callback - The callback to remove.
-     * @param {Object} target - The target to invoke the callback, if it's not given, only callback without target will be removed
-     * @param {Boolean} useCapture - Specifies whether the callback being removed was registered as a capturing callback or not.
+     * @param {Object} [target] - The target to invoke the callback, if it's not given, only callback without target will be removed
+     * @param {Boolean} [useCapture=false] - Specifies whether the callback being removed was registered as a capturing callback or not.
      *                              If not specified, useCapture defaults to false. If a callback was registered twice,
      *                              one with capture and one without, each must be removed separately. Removal of a capturing callback
      *                              does not affect a non-capturing version of the same listener, and vice versa.
      *
      * @example
      * // unregister event to all animation
-     * animation.off('', 'play',      this.onPlay,        this);
+     * animation.off('play', this.onPlay, this);
      */
     off: function (type, callback, target, useCapture) {
         this._init();

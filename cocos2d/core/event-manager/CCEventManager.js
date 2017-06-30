@@ -76,8 +76,6 @@ var __getListenerID = function (event) {
         return cc._EventListenerKeyboard.LISTENER_ID;
     if (type.startsWith(eventType.MOUSE))
         return cc._EventListenerMouse.LISTENER_ID;
-    if (type === eventType.FOCUS)
-        return cc._EventListenerFocus.LISTENER_ID;
     if (type.startsWith(eventType.TOUCH)){
         // Touch listener is very special, it contains two kinds of listeners, EventListenerTouchOneByOne and EventListenerTouchAllAtOnce.
         // return UNKNOWN instead.
@@ -100,6 +98,7 @@ var __getListenerID = function (event) {
  * 在 Creator 的设计中，鼠标，触摸和自定义事件的监听和派发请参考 http://cocos.com/docs/creator/scripting/events.html。
  *
  * @class eventManager
+ * @static
  * @example {@link utils/api/engine/docs/cocos2d/core/event-manager/CCEventManager/addListener.js}
  */
 cc.eventManager = {
@@ -140,7 +139,7 @@ cc.eventManager = {
      * !#zh 暂停传入的 node 相关的所有监听器的事件响应。
      * @method pauseTarget
      * @param {Node} node
-     * @param {Boolean} recursive
+     * @param {Boolean} [recursive=false]
      */
     pauseTarget: function (node, recursive) {
         if (!(node instanceof cc._BaseNode || node instanceof _ccsg.Node)) {
@@ -164,7 +163,7 @@ cc.eventManager = {
      * !#zh 恢复传入的 node 相关的所有监听器的事件响应。
      * @method resumeTarget
      * @param {Node} node
-     * @param {Boolean} recursive
+     * @param {Boolean} [recursive=false]
      */
     resumeTarget: function (node, recursive) {
         if (!(node instanceof cc._BaseNode || node instanceof _ccsg.Node)) {
@@ -910,7 +909,7 @@ cc.eventManager = {
      *
      * @method removeListeners
      * @param {Number|Node} listenerType - listenerType or a node
-     * @param {Boolean} recursive
+     * @param {Boolean} [recursive=false]
      */
     removeListeners: function (listenerType, recursive) {
         var i, _t = this;

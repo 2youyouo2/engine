@@ -17,6 +17,7 @@ var Deactivating = 1 << 8;
 
 var IsOnEnableCalled = 1 << 11;
 var IsEditorOnEnableCalled = 1 << 12;
+var IsPreloadStarted = 1 << 13;
 var IsOnLoadCalled = 1 << 14;
 var IsOnLoadStarted = 1 << 15;
 var IsStartCalled = 1 << 16;
@@ -30,7 +31,7 @@ var IsPositionLocked = 1 << 21;
 //var Hide = HideInGame | HideInEditor;
 // should not clone or serialize these flags
 var PersistentMask = ~(ToDestroy | Dirty | Destroying | DontDestroy | Deactivating |
-                       IsOnLoadStarted | IsOnLoadCalled | IsStartCalled |
+                       IsPreloadStarted | IsOnLoadStarted | IsOnLoadCalled | IsStartCalled |
                        IsOnEnableCalled | IsEditorOnEnableCalled |
                        IsRotationLocked | IsScaleLocked | IsAnchorLocked | IsSizeLocked | IsPositionLocked
                        /*RegisteredInEditor*/);
@@ -59,23 +60,15 @@ function CCObject () {
 }
 CCClass.fastDefine('cc.Object', CCObject, { _name: '', _objFlags: 0 });
 
-function defineNotInheritable (obj, prop, value, writable) {
-    Object.defineProperty(obj, prop, {
-        value: value,
-        writable: !!writable
-        // enumerable is false by default
-    });
-}
-
 /**
  * Bit mask that controls object states.
- * @class Flags
+ * @enum Flags
  * @static
  * @private
  */
-defineNotInheritable(CCObject, 'Flags', {
+JS.value(CCObject, 'Flags', {
 
-    Destroyed: Destroyed,
+    Destroyed,
     //ToDestroy: ToDestroy,
 
     /**
@@ -83,16 +76,16 @@ defineNotInheritable(CCObject, 'Flags', {
      * !#zh 该对象将不会被保存。
      * @property {Number} DontSave
      */
-    DontSave: DontSave,
+    DontSave,
 
     /**
      * !#en The object will not be saved when building a player.
      * !#zh 构建项目时，该对象将不会被保存。
      * @property {Number} EditorOnly
      */
-    EditorOnly: EditorOnly,
+    EditorOnly,
 
-    Dirty: Dirty,
+    Dirty,
 
     /**
      * !#en Dont destroy automatically when loading a new scene.
@@ -100,13 +93,13 @@ defineNotInheritable(CCObject, 'Flags', {
      * @property DontDestroy
      * @private
      */
-    DontDestroy: DontDestroy,
+    DontDestroy,
 
-    PersistentMask: PersistentMask,
+    PersistentMask,
 
     // FLAGS FOR ENGINE
 
-    Destroying: Destroying,
+    Destroying,
 
     /**
      * !#en The node is deactivating.
@@ -114,7 +107,7 @@ defineNotInheritable(CCObject, 'Flags', {
      * @property Deactivating
      * @private
      */
-    Deactivating: Deactivating,
+    Deactivating,
 
     ///**
     // * !#en
@@ -152,17 +145,18 @@ defineNotInheritable(CCObject, 'Flags', {
 
     // FLAGS FOR COMPONENT
 
-    IsOnLoadCalled: IsOnLoadCalled,
-    IsOnLoadStarted: IsOnLoadStarted,
-    IsOnEnableCalled: IsOnEnableCalled,
-    IsStartCalled: IsStartCalled,
-    IsEditorOnEnableCalled: IsEditorOnEnableCalled,
+    IsPreloadStarted,
+    IsOnLoadStarted,
+    IsOnLoadCalled,
+    IsOnEnableCalled,
+    IsStartCalled,
+    IsEditorOnEnableCalled,
 
-    IsPositionLocked: IsPositionLocked,
-    IsRotationLocked: IsRotationLocked,
-    IsScaleLocked: IsScaleLocked,
-    IsAnchorLocked: IsAnchorLocked,
-    IsSizeLocked: IsSizeLocked,
+    IsPositionLocked,
+    IsRotationLocked,
+    IsScaleLocked,
+    IsAnchorLocked,
+    IsSizeLocked,
 });
 
 var objectsToDestroy = [];
@@ -189,10 +183,10 @@ function deferredDestroy () {
     }
 }
 
-defineNotInheritable(CCObject, '_deferredDestroy', deferredDestroy);
+JS.value(CCObject, '_deferredDestroy', deferredDestroy);
 
 if (CC_EDITOR) {
-    defineNotInheritable(CCObject, '_clearDeferredDestroyTimer', function () {
+    JS.value(CCObject, '_clearDeferredDestroyTimer', function () {
         if (deferredDestroyTimer !== null) {
             clearImmediate(deferredDestroyTimer);
             deferredDestroyTimer = null;
@@ -394,7 +388,7 @@ prototype._destruct = function () {
     var destruct = ctor.__destruct__;
     if (!destruct) {
         destruct = compileDestruct(this, ctor);
-        defineNotInheritable(ctor, '__destruct__', destruct, true);
+        JS.value(ctor, '__destruct__', destruct, true);
     }
     destruct(this);
 };
@@ -416,7 +410,7 @@ prototype._destroyImmediate = function () {
         this._onPreDestroy();
     }
 
-    if (!CC_EDITOR || cc.engine._isPlaying) {
+    if ((CC_TEST ? (/* make CC_EDITOR mockable*/ Function('return !CC_EDITOR'))() : !CC_EDITOR) || cc.engine._isPlaying) {
         this._destruct();
     }
 
@@ -466,10 +460,10 @@ cc.isValid = function (value) {
 };
 
 if (CC_EDITOR || CC_TEST) {
-    defineNotInheritable(CCObject, '_willDestroy', function (obj) {
+    JS.value(CCObject, '_willDestroy', function (obj) {
         return !(obj._objFlags & Destroyed) && (obj._objFlags & ToDestroy) > 0;
     });
-    defineNotInheritable(CCObject, '_cancelDestroy', function (obj) {
+    JS.value(CCObject, '_cancelDestroy', function (obj) {
         obj._objFlags &= ~ToDestroy;
         JS.array.fastRemove(objectsToDestroy, obj);
     });

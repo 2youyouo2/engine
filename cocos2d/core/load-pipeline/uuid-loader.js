@@ -27,9 +27,6 @@ var JS = require('../platform/js');
 require('../platform/deserialize');
 var LoadingItems = require('./loading-items');
 
-// temp deserialize info
-var _tdInfo = new cc.deserialize.Details();
-
 function isSceneObj (json) {
     var SCENE_ID = 'cc.Scene';
     var PREFAB_ID = 'cc.Prefab';
@@ -76,8 +73,8 @@ function loadDepends (pipeline, item, asset, tdInfo, deferredLoadRawAssetsInRunt
         }
     }
     else {
-        objList = JS.array.copy(tdInfo.uuidObjList);
-        propList = JS.array.copy(tdInfo.uuidPropList);
+        objList = tdInfo.uuidObjList;
+        propList = tdInfo.uuidPropList;
         depends = new Array(uuidList.length);
         // declare depends assets
         for (i = 0; i < uuidList.length; i++) {
@@ -105,6 +102,7 @@ function loadDepends (pipeline, item, asset, tdInfo, deferredLoadRawAssetsInRunt
     }
     // fast path
     if (depends.length === 0) {
+        cc.deserialize.Details.pool.put(tdInfo);
         return callback(null, asset);
     }
 
@@ -170,13 +168,14 @@ function loadDepends (pipeline, item, asset, tdInfo, deferredLoadRawAssetsInRunt
         if (CC_EDITOR && missingAssetReporter) {
             missingAssetReporter.reportByOwner();
         }
+        cc.deserialize.Details.pool.put(tdInfo);
         callback(null, asset);
     });
 }
 
 // can deferred load raw assets in runtime
 function canDeferredLoad (asset, item, isScene) {
-    if (CC_EDITOR) {
+    if (CC_EDITOR || CC_JSB) {
         return false;
     }
     var res = item.deferredLoadRaw;
@@ -210,16 +209,14 @@ function loadUuid (item, callback) {
             json = JSON.parse(item.content);
         }
         catch (e) {
-            callback( new Error('Uuid Loader: Parse asset [' + item.id + '] failed : ' + e.stack) );
-            return;
+            return new Error('Uuid Loader: Parse asset [' + item.id + '] failed : ' + e.stack);
         }
     }
     else if (typeof item.content === 'object') {
         json = item.content;
     }
     else {
-        callback( new Error('JSON Loader: Input item doesn\'t contain string content') );
-        return;
+        return new Error('JSON Loader: Input item doesn\'t contain string content');
     }
 
     var classFinder;
@@ -251,7 +248,7 @@ function loadUuid (item, callback) {
         };
     }
 
-    var tdInfo = CC_JSB ? new cc.deserialize.Details() : _tdInfo;
+    var tdInfo = cc.deserialize.Details.pool.get();
 
     var asset;
     try {
@@ -262,10 +259,9 @@ function loadUuid (item, callback) {
         });
     }
     catch (e) {
-        tdInfo.reset();
+        cc.deserialize.Details.pool.put(tdInfo);
         var err = CC_JSB ? (e + '\n' + e.stack) : e.stack;
-        callback( new Error('Uuid Loader: Deserialize asset [' + item.id + '] failed : ' + err) );
-        return;
+        return new Error('Uuid Loader: Deserialize asset [' + item.id + '] failed : ' + err);
     }
 
     asset._uuid = item.uuid;
@@ -276,9 +272,6 @@ function loadUuid (item, callback) {
 
     var deferredLoad = canDeferredLoad(asset, item, isScene);
     loadDepends(this.pipeline, item, asset, tdInfo, deferredLoad, callback);
-
-    // tdInfo 是用来重用的临时对象，每次使用后都要重设，这样才对 GC 友好。
-    tdInfo.reset();
 }
 
 module.exports = loadUuid;

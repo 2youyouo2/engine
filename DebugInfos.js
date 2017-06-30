@@ -1,4 +1,4 @@
-if (CC_DEV) {
+if (CC_DEBUG) {
     var logs = {
         //ActionManager: 1000
         "1000": "cc.ActionManager.addAction(): action must be non-null", //addAction
@@ -20,6 +20,8 @@ if (CC_DEV) {
         "1016": "cc.RotateTo.reverse(): it should be overridden in subclass.", //RotateTo.reverse
         "1017": "cc.GridAction.getGrid(): it should be overridden in subclass.", //ActionGrid.getGrid
         "1018": "Grid size must be (1,1)", //ActionGrid3D.initWithSize
+        "1019": "Failed to construct, Sequence construction needs two or more actions", //ActionInterval.sequence
+        "1020": "Failed to construct, Spawn construction needs two or more actions", //ActionInterval.spawn
         //configuration: 1100
         "1100": "Expected 'data' dict, but not found. Config file: %s", //loadConfigFile
         "1101": "Please load the resource first : %s", //loadConfigFile_2
@@ -49,16 +51,17 @@ if (CC_DEV) {
         "1403": "Sorry, cc.audioEngine.willPlayMusic is removed.", //willPlayMusicError
         "1404": "cc.spriteFrameCache is removed, please use cc.loader to load and cache sprite frames of atlas format.",
         //Scheduler: 1500
-        "1500": "CCSheduler#scheduleCallback. Callback already scheduled. Updating interval from:%s to %s", //scheduleCallbackForTarget
-        "1501": "cc.scheduler.scheduleCallbackForTarget(): callback_fn should be non-null.", //scheduleCallbackForTarget_2
-        "1502": "cc.scheduler.scheduleCallbackForTarget(): target should be non-null.", //scheduleCallbackForTarget_3
-        "1503": "cc.Scheduler.pauseTarget():target should be non-null", //pauseTarget
-        "1504": "cc.Scheduler.resumeTarget():target should be non-null", //resumeTarget
-        "1505": "cc.Scheduler.isTargetPaused():target should be non-null", //isTargetPaused
+        "1500": "cc.Scheduler#schedule: Callback already scheduled. Updating interval from:%s to %s", //scheduleCallbackForTarget
+        "1501": "cc.Scheduler#scheduleCallbackForTarget(): callback_fn should be non-null.", //scheduleCallbackForTarget_2
+        "1502": "cc.Scheduler#scheduleCallbackForTarget(): target should be non-null.", //scheduleCallbackForTarget_3
+        "1503": "cc.Scheduler#pauseTarget():target should be non-null", //pauseTarget
+        "1504": "cc.Scheduler#resumeTarget():target should be non-null", //resumeTarget
+        "1505": "cc.Scheduler#isTargetPaused():target should be non-null", //isTargetPaused
         "1506": "warning: you CANNOT change update priority in scheduled function", //_schedulePerFrame
-        "1507": "CCScheduler#scheduleSelector. Selector already scheduled. Updating interval from: %.4f to %.4f", //schedule
+        "1507": "cc.Scheduler#scheduleSelector: Selector already scheduled. Updating interval from: %.4f to %.4f", //schedule
         "1508": "Argument callback must not be empty", //isScheduled
         "1509": "Argument target must be non-nullptr", //isScheduled
+        "1510": "cc.Scheduler: Illegal target which doesn't have uuid or instanceId",
         //Node: 1600
         "1600": "getZOrder is deprecated. Please use getLocalZOrder instead.", //getZOrder
         "1601": "setZOrder is deprecated. Please use setLocalZOrder instead.", //setZOrder
@@ -266,7 +269,7 @@ if (CC_DEV) {
         "3610": "The type of %s must be cc.Float or cc.Integer, not Number.", //getTypeChecker_7
         "3611": "Can not indicate the '%s' attribute for %s, which its default value is type of %s.", //getTypeChecker_8
         "3612": "%s Just set the default value to 'new %s()' and it will be handled properly.", //getTypeChecker_9
-        "3613": "'No need to use 'serializable: false' or 'editorOnly: true' for the getter of '%s.%s', every getter is actually non-serialized.", //defineGetSet
+        "3613": "'No need to specify the '%s' attribute for the getter of '%s.%s', every getter is actually non-serialized.", //defineGetSet
         "3615": "Each script can have at most one Component.", //define_2
         "3616": "Should not specify class name %s for Component which defines in project.", //define_3
         "3617": "ctor of CCClass '%s' should not accept any arguments.", //_createCtor
@@ -291,7 +294,6 @@ if (CC_DEV) {
         "3636": "Do not set default value to non-empty object, unless the object defines its own 'clone' function. Set default value of %s.%s to null or {}, and initialize in 'onLoad' or 'ctor' please. (just like 'this.%s = {foo: bar};')", //defineProp_2        
         "3637": "Can not declare %s.%s, it is already defined in the prototype of %s", //defineProp_3        
         "3638": "'%s': the getter of '%s' is already defined!", //defineGetSet_2
-        "3639": "Can not apply the specified attribute to the getter of '%s.%s', attribute index: %s", //defineGetSet_3
         "3640": "'%s': the setter of '%s' is already defined!", //defineGetSet_4
         "3641": "Can not construct %s because it contains object property.", //getNewValueTypeCode
         "3642": "Cannot define %s.%s because static member name can not be '%s'.", //CCClass_4
@@ -353,7 +355,8 @@ if (CC_DEV) {
         "4008": "cc.LabelBMFont.initWithString(): Impossible to create font. Please check file", //
         "4009": "cocos2d: LabelBMFont: character not found %s", //BMFont.createFontChars
         "4010": "cc.LabelBMFont.setFntFile() : Impossible to create font. Please check file", //BMFont.setFntFile
-        "4011": "Property spriteFrame of BitmapFont '%s' is invalid. Using system font instead.", // BMFont spriteFrame is invalid.
+        "4011": "Property spriteFrame of Font '%s' is invalid. Using system font instead.", // BMFont spriteFrame is invalid.
+        "4012": "The texture of Font '%s' must be already loaded on JSB. Using system font instead.",
         //Layout: 4100
         "4100": "Property padding is deprecated, please use paddingLeft, paddingRight, paddingTop and paddingBottom instead", //padding
         //Mask: 4200
@@ -364,9 +367,6 @@ if (CC_DEV) {
         "4300": "can not found the %s page.", //removePage
         //RichText: 4400
         "4400": "Invalid RichText img tag! The sprite frame name can\'t be found in the ImageAtlas!", //_addRichTextImageElement
-        //ToggleGroup: 4500
-        "4500": "Toggle alreay in ToggleGroup. Something bad happened, please report this issue to the Creator developer, thanks.", //addToggle
-        "4501": "Toggle is not in ToggleGroup. Something bad happened, please report this issue to the Creator developer, thanks.", //removeToggle
         //MissingScript: 4600
         "4600": "Script attached to '%s' is missing or invalid.", //onLoad
         //EditBox: 4700
@@ -583,6 +583,7 @@ if (CC_DEV) {
         "8200": "Please set node\'s active instead of rigidbody\'s enabled.", //cc.RigidBody.enabled
         //Camera: 8300
         "8300": "Should only one camera exists, please check your project.", //cc.Camera.enabled
+        "8301": "Camera does not support Canvas Mode.", //cc.Camera.enabled
     };
     cc._LogInfos = logs;
 }

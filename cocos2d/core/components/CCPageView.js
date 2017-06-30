@@ -212,21 +212,20 @@ var PageView = cc.Class({
     },
 
     __preload: function () {
-        this._super();
         this.node.on('size-changed', this._updateAllPagesSize, this);
     },
 
     onEnable: function () {
         this._super();
         if(!CC_EDITOR) {
-            this.node.on('scroll-ended', this._dispatchPageTurningEvent, this);
+            this.node.on('scroll-ended-with-threshold', this._dispatchPageTurningEvent, this);
         }
     },
 
     onDisable: function () {
         this._super();
         if(!CC_EDITOR) {
-            this.node.off('scroll-ended', this._dispatchPageTurningEvent, this);
+            this.node.off('scroll-ended-with-threshold', this._dispatchPageTurningEvent, this);
         }
     },
 
@@ -238,7 +237,6 @@ var PageView = cc.Class({
     },
 
     onDestroy: function() {
-        this._super();
         this.node.off('size-changed', this._updateAllPagesSize, this);
     },
 
@@ -607,6 +605,6 @@ cc.PageView = module.exports = PageView;
  * !#zh
  * 注意：此事件是从该组件所属的 Node 上面派发出来的，需要用 node.on 来监听。
  * @event page-turning
- * @param {Event} event
+ * @param {Event.EventCustom} event
  * @param {PageView} event.detail - The PageView component.
  */

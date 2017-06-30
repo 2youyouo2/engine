@@ -29,6 +29,7 @@ var Texture2D = require('./CCTexture2D');
 /**
  * cc.textureCache is a singleton object, it's the global cache for cc.Texture2D
  * @class textureCache
+ * @static
  */
 var textureCache = /** @lends cc.textureCache# */{
     _textures: {},
@@ -86,7 +87,7 @@ var textureCache = /** @lends cc.textureCache# */{
 
     /*
      * @method getKeyByTexture
-     * @param {Image} texture
+     * @param {HTMLImageElement} texture
      * @return {String|Null}
      * @example {@link utils/api/engine/docs/cocos2d/core/textures/getKeyByTexture.js}
      */
@@ -105,7 +106,7 @@ var textureCache = /** @lends cc.textureCache# */{
 
     /**
      * @method getTextureColors
-     * @param {Image} texture
+     * @param {HTMLImageElement} texture
      * @return {Array}
      * @example {@link utils/api/engine/docs/cocos2d/core/textures/getTextureColors.js}
      */
@@ -160,7 +161,7 @@ var textureCache = /** @lends cc.textureCache# */{
     /**
      * Deletes a texture from the cache given a texture.
      * @method removeTexture
-     * @param {Image} texture
+     * @param {HTMLImageElement} texture
      * @example {@link utils/api/engine/docs/cocos2d/core/textures/removeTexture.js}
      */
     removeTexture: function (texture) {
@@ -212,7 +213,7 @@ var textureCache = /** @lends cc.textureCache# */{
      * Cache the image data.
      * @method cacheImage
      * @param {String} path
-     * @param {Image|HTMLImageElement|HTMLCanvasElement} texture
+     * @param {HTMLImageElement|HTMLCanvasElement} texture
      */
     cacheImage: function (path, texture) {
         cc.assertID(path, 3009);

@@ -89,7 +89,7 @@ var game = {
     CONFIG_KEY: {
         width: "width",
         height: "height",
-        engineDir: "engineDir",
+        // engineDir: "engineDir",
         debugMode: "debugMode",
         exposeClassName: "exposeClassName",
         showFPS: "showFPS",
@@ -130,14 +130,14 @@ var game = {
      * !#en The container of game canvas, equals to cc.container.
      * !#zh 游戏画布的容器。
      * @property container
-     * @type {Object}
+     * @type {HTMLDivElement}
      */
     container: null,
     /**
      * !#en The canvas of the game, equals to cc._canvas.
      * !#zh 游戏的画布。
      * @property canvas
-     * @type {Object}
+     * @type {HTMLCanvasElement}
      */
     canvas: null,
 
@@ -224,7 +224,7 @@ var game = {
         var self = this, config = self.config, CONFIG_KEY = self.CONFIG_KEY;
         config[CONFIG_KEY.frameRate] = frameRate;
         if (self._intervalId)
-            window.cancelAnimationFrame(self._intervalId);
+            window.cancelAnimFrame(self._intervalId);
         self._intervalId = 0;
         self._paused = true;
         self._setAnimFrame();
@@ -256,7 +256,7 @@ var game = {
         }
         // Pause main loop
         if (this._intervalId)
-            window.cancelAnimationFrame(this._intervalId);
+            window.cancelAnimFrame(this._intervalId);
         this._intervalId = 0;
     },
 
@@ -508,7 +508,7 @@ var game = {
         this._frameTime = 1000 / frameRate;
         if (frameRate !== 60 && frameRate !== 30) {
             window.requestAnimFrame = this._stTime;
-            window.cancelAnimationFrame = this._ctTime;
+            window.cancelAnimFrame = this._ctTime;
         }
         else {
             window.requestAnimFrame = window.requestAnimationFrame ||
@@ -517,7 +517,7 @@ var game = {
             window.oRequestAnimationFrame ||
             window.msRequestAnimationFrame ||
             this._stTime;
-            window.cancelAnimationFrame = window.cancelAnimationFrame ||
+            window.cancelAnimFrame = window.cancelAnimationFrame ||
             window.cancelRequestAnimationFrame ||
             window.msCancelRequestAnimationFrame ||
             window.mozCancelRequestAnimationFrame ||
@@ -611,7 +611,7 @@ var game = {
             config[CONFIG_KEY.registerSystemEvent] = true;
         }
         config[CONFIG_KEY.showFPS] = (CONFIG_KEY.showFPS in config) ? (!!config[CONFIG_KEY.showFPS]) : true;
-        config[CONFIG_KEY.engineDir] = config[CONFIG_KEY.engineDir] || 'frameworks/cocos2d-html5';
+        // config[CONFIG_KEY.engineDir] = config[CONFIG_KEY.engineDir] || 'frameworks/cocos2d-html5';
 
         // Scene parser
         this._sceneInfos = config[CONFIG_KEY.scenes] || [];
@@ -672,7 +672,7 @@ var game = {
             this._renderContext = cc._renderContext = cc.webglContext
              = cc.create3DContext(localCanvas, {
                 'stencil': true,
-                'alpha': true,
+                'alpha': cc.macro.ENABLE_TRANSPARENT_CANVAS,
                 'antialias': cc.sys.isMobile
             });
         }

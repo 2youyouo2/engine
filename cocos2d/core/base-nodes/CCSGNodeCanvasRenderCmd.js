@@ -103,6 +103,8 @@ _ccsg.Node.RenderCmd = function (renderable) {
     this._dirtyFlag = 1;
     this._curLevel = -1;
 
+    this._cameraFlag = 0;
+
     this._displayedColor = new cc.Color(255, 255, 255, 255);
     this._displayedOpacity = 255;
     this._cascadeColorEnabledDirty = false;
@@ -275,6 +277,15 @@ _ccsg.Node.RenderCmd.prototype = {
         if (this._currentRegion) {
             this._updateCurrentRegions();
             this._notifyRegionStatus && this._notifyRegionStatus(_ccsg.Node.CanvasRenderCmd.RegionStatus.DirtyDouble);
+        }
+
+        var Camera = cc.Camera;
+        if (cc._renderType === cc.game.RENDER_TYPE_WEBGL && Camera) {
+            // check if node is in camera
+            var camera = Camera.main;
+            if (parentCmd && this._cameraFlag != Camera.flags.InCamera) {
+                this._cameraFlag = parentCmd._cameraFlag > 0 ? Camera.flags.ParentInCamera : 0;
+            }
         }
 
         if (recursive) {

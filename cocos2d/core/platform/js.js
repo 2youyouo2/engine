@@ -24,7 +24,7 @@
  THE SOFTWARE.
  ****************************************************************************/
 
-const tempCIDGenerater = new (require('./id-generater'))('cc.TmpCId.');
+const tempCIDGenerater = new (require('./id-generater'))('TmpCId.');
 
 
 function _getPropertyDescriptor (obj, name) {
@@ -202,7 +202,9 @@ var js = {
      * @return {Function}
      */
     getSuper (ctor) {
-        if (CC_JSB && ctor.$super) {
+        if (CC_JSB && ctor.hasOwnProperty('$super')) {
+            // babel runtime uses Object.setPrototypeOf to inherit static members,
+            // so $super will always inheritable even if it is non-enumerable.
             return ctor.$super;
         }
         else {
@@ -232,6 +234,106 @@ var js = {
      * @return {Object}
      */
     getPropertyDescriptor: _getPropertyDescriptor
+};
+
+
+var tmpValueDesc = {
+    value: undefined,
+    enumerable: false,
+    writable: false,
+    configurable: true
+};
+
+/**
+ * Define value, just help to call Object.defineProperty.<br>
+ * The configurable will be true.
+ * @method value
+ * @param {Object} obj
+ * @param {String} prop
+ * @param {any} value
+ * @param {Boolean} [writable=false]
+ * @param {Boolean} [enumerable=false]
+ */
+js.value = function (obj, prop, value, writable, enumerable) {
+    tmpValueDesc.value = value;
+    tmpValueDesc.writable = writable;
+    tmpValueDesc.enumerable = enumerable;
+    Object.defineProperty(obj, prop, tmpValueDesc);
+    tmpValueDesc.value = undefined;
+};
+
+var tmpGetSetDesc = {
+    get: null,
+    set: null,
+    enumerable: false,
+};
+
+/**
+ * Define get set accessor, just help to call Object.defineProperty(...)
+ * @method getset
+ * @param {Object} obj
+ * @param {String} prop
+ * @param {Function} getter
+ * @param {Function} setter
+ * @param {Boolean} [enumerable=false]
+ */
+js.getset = function (obj, prop, getter, setter, enumerable) {
+    if (typeof setter !== 'function') {
+        enumerable = setter;
+        setter = undefined;
+    }
+    tmpGetSetDesc.get = getter;
+    tmpGetSetDesc.set = setter;
+    tmpGetSetDesc.enumerable = enumerable;
+    Object.defineProperty(obj, prop, tmpGetSetDesc);
+    tmpGetSetDesc.get = null;
+    tmpGetSetDesc.set = null;
+};
+
+var tmpGetDesc = {
+    get: null,
+    enumerable: false,
+    configurable: false
+};
+
+/**
+ * Define get accessor, just help to call Object.defineProperty(...)
+ * @method get
+ * @param {Object} obj
+ * @param {String} prop
+ * @param {Function} getter
+ * @param {Boolean} [enumerable=false]
+ * @param {Boolean} [configurable=false]
+ */
+js.get = function (obj, prop, getter, enumerable, configurable) {
+    tmpGetDesc.get = getter;
+    tmpGetDesc.enumerable = enumerable;
+    tmpGetDesc.configurable = configurable;
+    Object.defineProperty(obj, prop, tmpGetDesc);
+    tmpGetDesc.get = null;
+};
+
+var tmpSetDesc = {
+    set: null,
+    enumerable: false,
+    configurable: false
+};
+
+/**
+ * Define set accessor, just help to call Object.defineProperty(...)
+ * @method set
+ * @param {Object} obj
+ * @param {String} prop
+ * @param {Function} setter
+ * @param {Boolean} [enumerable=false]
+ * @param {Boolean} [configurable=false]
+ */
+js.set = function (obj, prop, setter, enumerable, configurable) {
+    tmpSetDesc.set = setter;
+    tmpSetDesc.enumerable = enumerable;
+    tmpSetDesc.configurable = configurable;
+    Object.defineProperty(obj, prop, tmpSetDesc);
+    tmpSetDesc.set = null;
 };
 
 /**
@@ -274,7 +376,7 @@ js.getClassName = function (objOrCtor) {
     return '';
 };
 
-function isTempClassId_DEV (id) {
+function isTempClassId (id) {
     return typeof id !== 'string' || id.startsWith(tempCIDGenerater.prefix);
 }
 
@@ -289,7 +391,7 @@ function isTempClassId_DEV (id) {
             if (constructor.prototype.hasOwnProperty(key)) {
                 delete table[constructor.prototype[key]];
             }
-            constructor.prototype[key] = id;
+            js.value(constructor.prototype, key, id);
             // register class
             if (id) {
                 var registered = table[id];
@@ -410,7 +512,7 @@ cc.js.unregisterClass to remove the id of unused class';
         var res;
         if (typeof obj === 'function' && obj.prototype.hasOwnProperty('__cid__')) {
             res = obj.prototype.__cid__;
-            if (!allowTempId && CC_DEV && isTempClassId_DEV(res)) {
+            if (!allowTempId && (CC_DEV || CC_EDITOR) && isTempClassId(res)) {
                 return '';
             }
             return res;
@@ -419,7 +521,7 @@ cc.js.unregisterClass to remove the id of unused class';
             var prototype = obj.constructor.prototype;
             if (prototype && prototype.hasOwnProperty('__cid__')) {
                 res = obj.__cid__;
-                if (!allowTempId && CC_DEV && isTempClassId_DEV(res)) {
+                if (!allowTempId && (CC_DEV || CC_EDITOR) && isTempClassId(res)) {
                     return '';
                 }
                 return res;
@@ -429,90 +531,39 @@ cc.js.unregisterClass to remove the id of unused class';
     };
 
     if (CC_DEV) {
-        Object.defineProperty(js, '_registeredClassIds', {
-            get: function () {
+        js.getset(js, '_registeredClassIds',
+            function () {
                 var dump = {};
                 for (var id in _idToClass) {
                     dump[id] = _idToClass[id];
                 }
                 return dump;
             },
-            set: function (value) {
+            function (value) {
                 js.clear(_idToClass);
                 for (var id in value) {
                     _idToClass[id] = value[id];
                 }
             }
-        });
-        Object.defineProperty(js, '_registeredClassNames', {
-            get: function () {
+        );
+        js.getset(js, '_registeredClassNames', 
+            function () {
                 var dump = {};
                 for (var id in _nameToClass) {
                     dump[id] = _nameToClass[id];
                 }
                 return dump;
             },
-            set: function (value) {
+            function (value) {
                 js.clear(_nameToClass);
                 for (var id in value) {
                     _nameToClass[id] = value[id];
                 }
             }
-        });
+        );
     }
 
 })();
-
-/**
- * Define get set accessor, just help to call Object.defineProperty(...)
- * @method getset
- * @param {any} obj
- * @param {String} prop
- * @param {Function} getter
- * @param {Function} setter
- * @param {Boolean} [enumerable=false]
- */
-js.getset = function (obj, prop, getter, setter, enumerable) {
-    if (typeof setter !== 'function') {
-        enumerable = setter;
-        setter = undefined;
-    }
-    Object.defineProperty(obj, prop, {
-        get: getter,
-        set: setter,
-        enumerable: !!enumerable
-    });
-};
-
-/**
- * Define get accessor, just help to call Object.defineProperty(...)
- * @method get
- * @param {any} obj
- * @param {String} prop
- * @param {Function} getter
- * @param {Boolean} [enumerable=false]
- */
-js.get = function (obj, prop, getter, enumerable) {
-    Object.defineProperty(obj, prop, {
-        get: getter,
-        enumerable: !!enumerable
-    });
-};
-
-/**
- * Define set accessor, just help to call Object.defineProperty(...)
- * @method set
- * @param {any} obj
- * @param {String} prop
- * @param {Function} setter
- * @param {Boolean} [enumerable=false]
- */
-js.set = function (obj, prop, setter, enumerable) {
-    Object.defineProperty(obj, prop, {
-        set: setter,
-        enumerable: !!enumerable
-    });
-};
 
 /**
  * Defines a polyfill field for obsoleted codes.
@@ -523,7 +574,7 @@ js.set = function (obj, prop, setter, enumerable) {
  * @param {Boolean} [writable=false]
  */
 js.obsolete = function (obj, obsoleted, newPropName, writable) {
-    var oldName = obsoleted.split('.').slice(-1);
+    var oldName = obsoleted.split('.').slice(-1)[0];
     function get () {
         if (CC_DEV) {
             cc.warnID(5400, obsoleted, newPropName);
@@ -630,6 +681,16 @@ js.formatStr = CC_JSB ? function (...args) {
         }
     }
     return str;
+};
+
+// see https://github.com/petkaantonov/bluebird/issues/1389
+js.shiftArguments = function () {
+    var len = arguments.length - 1;
+    var args = new Array(len);
+    for(var i = 0; i < len; ++i) {
+        args[i] = arguments[i + 1];
+    }
+    return args;
 };
 
 /**
@@ -796,6 +857,160 @@ js.array = {
     MutableForwardIterator: require('../utils/mutable-forward-iterator')
 };
 
+// OBJECT POOL
+
+/**
+ * !#en
+ * A fixed-length object pool designed for general type.<br>
+ * The implementation of this object pool is very simple,
+ * it can helps you to improve your game performance for objects which need frequent release and recreate operations<br/>
+ * !#zh
+ * 长度固定的对象缓存池，可以用来缓存各种对象类型。<br/>
+ * 这个对象池的实现非常精简，它可以帮助您提高游戏性能，适用于优化对象的反复创建和销毁。
+ * @class Pool
+ * @example
+ *
+ *Example 1:
+ *
+ *function Details () {
+ *    this.uuidList = [];
+ *};
+ *Details.prototype.reset = function () {
+ *    this.uuidList.length = 0;
+ *};
+ *Details.pool = new JS.Pool(function (obj) {
+ *    obj.reset();
+ *}, 5);
+ *Details.pool.get = function () {
+ *    return this._get() || new Details();
+ *};
+ *
+ *var detail = Details.pool.get();
+ *...
+ *Details.pool.put(detail);
+ *
+ *Example 2:
+ *
+ *function Details (buffer) {
+ *    this.uuidList = buffer;
+ *};
+ *...
+ *Details.pool.get = function (buffer) {
+ *    var cached = this._get();
+ *    if (cached) {
+ *        cached.uuidList = buffer;
+ *        return cached;
+ *    }
+ *    else {
+ *        return new Details(buffer);
+ *    }
+ *};
+ *
+ *var detail = Details.pool.get( [] );
+ *...
+ */
+/**
+ * !#en
+ * Constructor for creating an object pool for the specific object type.
+ * You can pass a callback argument for process the cleanup logic when the object is recycled.
+ * !#zh
+ * 使用构造函数来创建一个指定对象类型的对象池，您可以传递一个回调函数，用于处理对象回收时的清理逻辑。
+ * @method constructor
+ * @param {Function} [cleanupFunc] - the callback method used to process the cleanup logic when the object is recycled.
+ * @param {Object} cleanupFunc.obj
+ * @param {Number} size - initializes the length of the array
+ * @typescript
+ * constructor(cleanupFunc: (obj: any) => void, size: number)
+ * constructor(size: number)
+ */
+function Pool (cleanupFunc, size) {
+    if (typeof cleanupFunc === 'number') {
+        size = cleanupFunc;
+        cleanupFunc = null;
+    }
+    this.get = null;
+    this.count = 0;
+    this._pool = new Array(size);
+    this._cleanup = cleanupFunc;
+}
+
+/**
+ * !#en
+ * Get and initialize an object from pool. This method defaults to null and requires the user to implement it.
+ * !#zh
+ * 获取并初始化对象池中的对象。这个方法默认为空，需要用户自己实现。
+ * @method get
+ * @param {any} ...params - parameters to used to initialize the object
+ * @returns {Object}
+ */
+
+/**
+ * !#en
+ * The current number of available objects, the default is 0, it will gradually increase with the recycle of the object,
+ * the maximum will not exceed the size specified when the constructor is called.
+ * !#zh
+ * 当前可用对象数量，一开始默认是 0，随着对象的回收会逐渐增大，最大不会超过调用构造函数时指定的 size。
+ * @property {Number} count
+ * @default 0
+ */
+
+/**
+ * !#en
+ * Get an object from pool, if no available object in the pool, null will be returned.
+ * !#zh
+ * 获取对象池中的对象，如果对象池没有可用对象，则返回空。
+ * @method _get
+ * @returns {Object|null}
+ */
+Pool.prototype._get = function () {
+    if (this.count > 0) {
+        --this.count;
+        var cache = this._pool[this.count];
+        this._pool[this.count] = null;
+        return cache;
+    }
+    return null;
+};
+
+/**
+ * !#en Put an object into the pool.
+ * !#zh 向对象池返还一个不再需要的对象。
+ * @method put
+ */
+Pool.prototype.put = function (obj) {
+    var pool = this._pool;
+    if (this.count < pool.length) {
+        if (this._cleanup && this._cleanup(obj) === false) {
+            return;
+        }
+        pool[this.count] = obj;
+        ++this.count;
+    }
+};
+
+/**
+ * !#en Resize the pool.
+ * !#zh 设置对象池容量。
+ * @method resize
+ */
+Pool.prototype.resize = function (length) {
+    if (length >= 0) {
+        this._pool.length = length;
+        if (this.count > length) {
+            this.count = length;
+        }
+    }
+};
+
+js.Pool = Pool;
+
+//
+
 cc.js = js;
 
 module.exports = js;
+
+// fix submodule pollute ...
+/**
+ * @submodule cc
+ */

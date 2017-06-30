@@ -29,14 +29,12 @@ var JS = require("../platform/js");
  * !#en Base class of all kinds of events.
  * !#zh 包含事件相关信息的对象。
  * @class Event
- *
  */
 
 /**
- * @method Event
+ * @method constructor
  * @param {String} type - The name of the event (case-sensitive), e.g. "click", "fire", or "submit"
  * @param {Boolean} bubbles - A boolean indicating whether the event bubbles up through the tree or not
- * @return {Event}
  */
 cc.Event = function(type, bubbles) {
     /**
@@ -279,10 +277,9 @@ cc.Event.BUBBLING_PHASE = 3;
  */
 
 /**
- * @method EventCustom
+ * @method constructor
  * @param {String} type - The name of the event (case-sensitive), e.g. "click", "fire", or "submit"
  * @param {Boolean} bubbles - A boolean indicating whether the event bubbles up through the tree or not
- * @return {EventCustom}
  */
 var EventCustom = function (type, bubbles) {
     cc.Event.call(this, type, bubbles);
@@ -297,47 +294,45 @@ var EventCustom = function (type, bubbles) {
 };
 
 JS.extend(EventCustom, cc.Event);
-JS.mixin(EventCustom.prototype, {
-    reset: EventCustom,
 
-    /**
-     * !#en Sets user data
-     * !#zh 设置用户数据
-     * @method setUserData
-     * @param {*} data
-     */
-    setUserData: function (data) {
-        this.detail = data;
-    },
+EventCustom.prototype.reset = EventCustom;
 
-    /**
-     * !#en Gets user data
-     * !#zh 获取用户数据
-     * @method getUserData
-     * @returns {*}
-     */
-    getUserData: function () {
-        return this.detail;
-    },
+/**
+ * !#en Sets user data
+ * !#zh 设置用户数据
+ * @method setUserData
+ * @param {*} data
+ */
+EventCustom.prototype.setUserData = function (data) {
+    this.detail = data;
+};
 
-    /**
-     * !#en Gets event name
-     * !#zh 获取事件名称
-     * @method getEventName
-     * @returns {String}
-     */
-    getEventName: cc.Event.prototype.getType
-});
+/**
+ * !#en Gets user data
+ * !#zh 获取用户数据
+ * @method getUserData
+ * @returns {*}
+ */
+EventCustom.prototype.getUserData = function () {
+    return this.detail;
+};
 
-var _eventPool = [];
+/**
+ * !#en Gets event name
+ * !#zh 获取事件名称
+ * @method getEventName
+ * @returns {String}
+ */
+EventCustom.prototype.getEventName = cc.Event.prototype.getType;
+
+
 var MAX_POOL_SIZE = 10;
+var _eventPool = new JS.Pool(MAX_POOL_SIZE);
 EventCustom.put = function (event) {
-    if (_eventPool.length < MAX_POOL_SIZE) {
-        _eventPool.push(event);
-    }
+    _eventPool.put(event);
 };
 EventCustom.get = function (type, bubbles) {
-    var event = _eventPool.pop();
+    var event = _eventPool._get();
     if (event) {
         event.reset(type, bubbles);
     }

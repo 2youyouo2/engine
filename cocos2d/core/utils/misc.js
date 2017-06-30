@@ -23,12 +23,11 @@
  THE SOFTWARE.
  ****************************************************************************/
 
-// jshint evil: true
+var JS = require('../platform/js');
 
-// should not use long variable name because eval breaks uglify's mangle operation in this file
-var m = {};
+var misc = exports;
 
-m.propertyDefine = function (ctor, sameNameGetSets, diffNameGetSets) {
+misc.propertyDefine = function (ctor, sameNameGetSets, diffNameGetSets) {
     function define (np, propName, getter, setter) {
         var pd = Object.getOwnPropertyDescriptor(np, propName);
         if (pd) {
@@ -65,7 +64,7 @@ m.propertyDefine = function (ctor, sameNameGetSets, diffNameGetSets) {
  * @return {Number}
  * Constructor
  */
-m.NextPOT = function (x) {
+misc.NextPOT = function (x) {
     x = x - 1;
     x = x | (x >> 1);
     x = x | (x >> 2);
@@ -90,21 +89,10 @@ m.NextPOT = function (x) {
 //
 //DirtyFlags.WIDGET = DirtyFlags.TRANSFORM | DirtyFlags.SIZE;
 
-// wrap a new scope to avoid uglify's mangle process broken by eval in caller's scope
-
-m.cleanEval_F = function (code, F) {
-    return eval(code);
-};
-
-m.cleanEval_fireClass = function (code) {
-    var fireClass = eval(code);
-    return fireClass;
-};
-
 if (CC_EDITOR) {
     // use anonymous function here to ensure it will not being hoisted without CC_EDITOR
 
-    m.tryCatchFunctor_EDITOR = function (funcName, receivedArgs, usedArgs, afterCall) {
+    misc.tryCatchFunctor_EDITOR = function (funcName, forwardArgs, afterCall, bindArg) {
         function call_FUNC_InTryCatch (_R_ARGS_) {
             try {
                 target._FUNC_(_U_ARGS_);
@@ -115,15 +103,36 @@ if (CC_EDITOR) {
             _AFTER_CALL_
         }
         // use evaled code to generate named function
-        return Function('return ' + call_FUNC_InTryCatch
+        return Function('arg', 'return ' + call_FUNC_InTryCatch
                     .toString()
                     .replace(/_FUNC_/g, funcName)
-                    .replace('_R_ARGS_', 'target' + (receivedArgs ? ', ' + receivedArgs : ''))
-                    .replace('_U_ARGS_', usedArgs || '')
-                    .replace('_AFTER_CALL_', afterCall || ''))();
+                    .replace('_R_ARGS_', 'target' + (forwardArgs ? ', ' + forwardArgs : ''))
+                    .replace('_U_ARGS_', forwardArgs || '')
+                    .replace('_AFTER_CALL_', afterCall || ''))(bindArg);
     };
 }
 
-module.exports = m;
+misc.imagePool = new JS.Pool(function (img) {
+                            if (img instanceof HTMLImageElement) {
+                                img.src = this._smallImg;
+                                return true;
+                            }
+                            return false;
+                       }, 10);
+misc.imagePool.get = function () {
+    return this._get() || new Image();
+};
+misc.imagePool._smallImg = "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=";
 
-// jshint evil: false
+misc.isBuiltinClassId = function (id) {
+    return id.startsWith('cc.') || id.startsWith('dragonBones.') || id.startsWith('sp.') || id.startsWith('ccsg.');
+};
+
+
+var BASE64_KEYS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+var BASE64_VALUES = new Array(123); // max char code in base64Keys
+for (let i = 0; i < 123; ++i) BASE64_VALUES[i] = 64; // fill with placeholder('=') index
+for (let i = 0; i < 64; ++i) BASE64_VALUES[BASE64_KEYS.charCodeAt(i)] = i;
+
+// decoded value indexed by base64 char code
+misc.BASE64_VALUES = BASE64_VALUES;

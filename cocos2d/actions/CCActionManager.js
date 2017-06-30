@@ -26,22 +26,15 @@
 
 /*
  * @class HashElement
- * @extends cc._Class
+ * @constructor
  * @private
- * @example
- * var element = new cc.HashElement();
  */
-var HashElement = cc._Class.extend(/** @lends cc.HashElement# */{
-    /**
-     * Constructor
-     * @method HashElement
-     */
+var HashElement = cc._Class.extend({
     ctor:function () {
         this.actions = [];
         this.target = null; //ccobject
         this.actionIndex = 0;
         this.currentAction = null; //CCAction
-        this.currentActionSalvaged = false;
         this.paused = false;
     }
 });
@@ -81,7 +74,6 @@ cc.ActionManager = cc._Class.extend(/** @lends cc.ActionManager# */{
         this._hashTargets = {};
         this._arrayTargets = [];
         this._currentTarget = null;
-        this._currentTargetSalvaged = false;
     },
 
     _getElement: function (target, paused) {
@@ -98,7 +90,6 @@ cc.ActionManager = cc._Class.extend(/** @lends cc.ActionManager# */{
         element.actions.length = 0;
         element.actionIndex = 0;
         element.currentAction = null;
-        element.currentActionSalvaged = false;
         element.paused = false;
         this._elementPool.push(element);
     },
@@ -163,7 +154,7 @@ cc.ActionManager = cc._Class.extend(/** @lends cc.ActionManager# */{
      * 移除指定对象上的所有动作。<br/>
      * 属于该目标的所有的动作将被删除。
      * @method removeAllActionsFromTarget
-     * @param {Object} target
+     * @param {Node} target
      * @param {Boolean} forceDelete
      */
     removeAllActionsFromTarget:function (target, forceDelete) {
@@ -172,15 +163,8 @@ cc.ActionManager = cc._Class.extend(/** @lends cc.ActionManager# */{
             return;
         var element = this._hashTargets[target.__instanceId];
         if (element) {
-            if (element.actions.indexOf(element.currentAction) !== -1 && !(element.currentActionSalvaged))
-                element.currentActionSalvaged = true;
-
             element.actions.length = 0;
-            if (this._currentTarget === element && !forceDelete) {
-                this._currentTargetSalvaged = true;
-            } else {
-                this._deleteHashElement(element);
-            }
+            this._deleteHashElement(element);
         }
     },
     /**
@@ -200,6 +184,9 @@ cc.ActionManager = cc._Class.extend(/** @lends cc.ActionManager# */{
             for (var i = 0; i < element.actions.length; i++) {
                 if (element.actions[i] === action) {
                     element.actions.splice(i, 1);
+                    // update actionIndex in case we are in tick. looping over the actions
+                    if (element.actionIndex >= i)
+                        element.actionIndex--;
                     break;
                 }
             }
@@ -213,7 +200,7 @@ cc.ActionManager = cc._Class.extend(/** @lends cc.ActionManager# */{
      * !#zh 删除指定对象下特定标签的一个动作，将删除首个匹配到的动作。
      * @method removeActionByTag
      * @param {Number} tag
-     * @param {Object} target
+     * @param {Node} target
      */
     removeActionByTag:function (tag, target) {
         if(tag === cc.Action.TAG_INVALID)
@@ -240,7 +227,7 @@ cc.ActionManager = cc._Class.extend(/** @lends cc.ActionManager# */{
      * !#zh 通过目标对象和标签获取一个动作。
      * @method getActionByTag
      * @param {Number} tag
-     * @param {Object} target
+     * @param {Node} target
      * @return {Action|Null}  return the Action with the given tag on success
      */
     getActionByTag:function (tag, target) {
@@ -277,7 +264,7 @@ cc.ActionManager = cc._Class.extend(/** @lends cc.ActionManager# */{
      *  - 如果你正在运行 2 个序列动作（Sequence）和 5 个普通动作，这个函数将返回 7。<br/>
      *
      * @method getNumberOfRunningActionsInTarget
-     * @param {Object} target
+     * @param {Node} target
      * @return {Number}
      */
     getNumberOfRunningActionsInTarget:function (target) {
@@ -291,7 +278,7 @@ cc.ActionManager = cc._Class.extend(/** @lends cc.ActionManager# */{
      * !#en Pauses the target: all running actions and newly added actions will be paused.
      * !#zh 暂停指定对象：所有正在运行的动作和新添加的动作都将会暂停。
      * @method pauseTarget
-     * @param {Object} target
+     * @param {Node} target
      */
     pauseTarget:function (target) {
         var element = this._hashTargets[target.__instanceId];
@@ -302,7 +289,7 @@ cc.ActionManager = cc._Class.extend(/** @lends cc.ActionManager# */{
      * !#en Resumes the target. All queued actions will be resumed.
      * !#zh 让指定目标恢复运行。在执行序列中所有被暂停的动作将重新恢复运行。
      * @method resumeTarget
-     * @param {Object} target
+     * @param {Node} target
      */
     resumeTarget:function (target) {
         var element = this._hashTargets[target.__instanceId];
@@ -378,9 +365,6 @@ cc.ActionManager = cc._Class.extend(/** @lends cc.ActionManager# */{
     _removeActionAtIndex:function (index, element) {
         var action = element.actions[index];
 
-        if ((action === element.currentAction) && (!element.currentActionSalvaged))
-            element.currentActionSalvaged = true;
-
         element.actions.splice(index, 1);
 
         // update actionIndex in case we are in tick. looping over the actions
@@ -388,11 +372,7 @@ cc.ActionManager = cc._Class.extend(/** @lends cc.ActionManager# */{
             element.actionIndex--;
 
         if (element.actions.length === 0) {
-            if (this._currentTarget === element) {
-                this._currentTargetSalvaged = true;
-            } else {
-                this._deleteHashElement(element);
-            }
+            this._deleteHashElement(element);
         }
     },
 
@@ -426,25 +406,17 @@ cc.ActionManager = cc._Class.extend(/** @lends cc.ActionManager# */{
         for (var elt = 0; elt < locTargets.length; elt++) {
             this._currentTarget = locTargets[elt];
             locCurrTarget = this._currentTarget;
-            //this._currentTargetSalvaged = false;
-            if (!locCurrTarget.paused) {
+            if (!locCurrTarget.paused && locCurrTarget.actions) {
                 // The 'actions' CCMutableArray may change while inside this loop.
-                for (locCurrTarget.actionIndex = 0;
-                     locCurrTarget.actionIndex < (locCurrTarget.actions ? locCurrTarget.actions.length : 0);
-                     locCurrTarget.actionIndex++) {
+                for (locCurrTarget.actionIndex = 0; locCurrTarget.actionIndex < locCurrTarget.actions.length; locCurrTarget.actionIndex++) {
                     locCurrTarget.currentAction = locCurrTarget.actions[locCurrTarget.actionIndex];
                     if (!locCurrTarget.currentAction)
                         continue;
 
-                    locCurrTarget.currentActionSalvaged = false;
                     //use for speed
                     locCurrTarget.currentAction.step(dt * ( locCurrTarget.currentAction._speedMethod ? locCurrTarget.currentAction._speed : 1 ) );
-                    if (locCurrTarget.currentActionSalvaged) {
-                        // The currentAction told the node to remove it. To prevent the action from
-                        // accidentally deallocating itself before finishing its step, we retained
-                        // it. Now that step is done, it's safe to release it.
-                        locCurrTarget.currentAction = null;//release
-                    } else if (locCurrTarget.currentAction.isDone()) {
+                    
+                    if (locCurrTarget.currentAction.isDone()) {
                         locCurrTarget.currentAction.stop();
                         var action = locCurrTarget.currentAction;
                         // Make currentAction nil to prevent removeAction from salvaging it.
@@ -455,12 +427,8 @@ cc.ActionManager = cc._Class.extend(/** @lends cc.ActionManager# */{
                     locCurrTarget.currentAction = null;
                 }
             }
-
-            // elt, at this moment, is still valid
-            // so it is safe to ask this here (issue #490)
-
             // only delete currentTarget if no actions were scheduled during the cycle (issue #481)
-            if (this._currentTargetSalvaged && locCurrTarget.actions.length === 0) {
+            if (locCurrTarget.actions.length === 0) {
                 this._deleteHashElement(locCurrTarget) && elt--;
             }
         }

@@ -123,24 +123,11 @@ var Slider = cc.Class({
     },
 
     __preload: function () {
-        this._registerEvent();
         this._updateHandlePosition();
     },
 
-    onDestroy: function() {
-        this.node.off(cc.Node.EventType.TOUCH_START, this._onTouchBegan, this);
-        this.node.off(cc.Node.EventType.TOUCH_MOVE, this._onTouchMoved, this);
-        this.node.off(cc.Node.EventType.TOUCH_END, this._onTouchEnded, this);
-        this.node.off(cc.Node.EventType.TOUCH_CANCEL, this._onTouchCancelled, this);
-        if (this.handle && this.handle.isValid) {
-            this.handle.node.off(cc.Node.EventType.TOUCH_START, this._onHandleDragStart, this);
-            this.handle.node.off(cc.Node.EventType.TOUCH_MOVE, this._onTouchMoved, this);
-            this.handle.node.off(cc.Node.EventType.TOUCH_END, this._onTouchEnded, this);
-        }
-    },
-
     // 注册事件
-    _registerEvent: function () {
+    onEnable: function () {
         this.node.on(cc.Node.EventType.TOUCH_START, this._onTouchBegan, this);
         this.node.on(cc.Node.EventType.TOUCH_MOVE, this._onTouchMoved, this);
         this.node.on(cc.Node.EventType.TOUCH_END, this._onTouchEnded, this);
@@ -149,6 +136,18 @@ var Slider = cc.Class({
             this.handle.node.on(cc.Node.EventType.TOUCH_START, this._onHandleDragStart, this);
             this.handle.node.on(cc.Node.EventType.TOUCH_MOVE, this._onTouchMoved, this);
             this.handle.node.on(cc.Node.EventType.TOUCH_END, this._onTouchEnded, this);
+        }
+    },
+
+    onDisable: function() {
+        this.node.off(cc.Node.EventType.TOUCH_START, this._onTouchBegan, this);
+        this.node.off(cc.Node.EventType.TOUCH_MOVE, this._onTouchMoved, this);
+        this.node.off(cc.Node.EventType.TOUCH_END, this._onTouchEnded, this);
+        this.node.off(cc.Node.EventType.TOUCH_CANCEL, this._onTouchCancelled, this);
+        if (this.handle && this.handle.isValid) {
+            this.handle.node.off(cc.Node.EventType.TOUCH_START, this._onHandleDragStart, this);
+            this.handle.node.off(cc.Node.EventType.TOUCH_MOVE, this._onTouchMoved, this);
+            this.handle.node.off(cc.Node.EventType.TOUCH_END, this._onTouchEnded, this);
         }
     },
 
@@ -227,6 +226,6 @@ cc.Slider = module.exports = Slider;
  * !#zh
  * 注意：此事件是从该组件所属的 Node 上面派发出来的，需要用 node.on 来监听。
  * @event slider
- * @param {Event} event
+ * @param {Event.EventCustom} event
  * @param {Slider} event.detail - The slider component.
  */

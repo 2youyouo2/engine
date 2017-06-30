@@ -47,12 +47,11 @@ var Color = (function () {
      * @extends ValueType
      */
     /**
-     * @method Color
+     * @method constructor
      * @param {Number} [r=0] - red component of the color, default value is 0.
      * @param {Number} [g=0] - green component of the color, defualt value is 0.
      * @param {Number} [b=0] - blue component of the color, default value is 0.
      * @param {Number} [a=255] - alpha component of the color, default value is 255.
-     * @return {Color}
      */
     function Color( r, g, b, a ) {
         if (typeof r === 'object') {
@@ -162,12 +161,11 @@ var Color = (function () {
         MAGENTA:    [255, 0, 255]
     };
     for (var colorName in DefaultColors) {
-        var colorGetter = (function (r, g, b, a) {
+        JS.get(Color, colorName, (function (rgba) {
             return function () {
-                return new Color(r, g, b, a);
+                return new Color(rgba[0], rgba[1], rgba[2], rgba[3]);
             };
-        }).apply(null, DefaultColors[colorName]);
-        Object.defineProperty(Color, colorName, { get: colorGetter });
+        })(DefaultColors[colorName]));
     }
 
     var proto = Color.prototype;

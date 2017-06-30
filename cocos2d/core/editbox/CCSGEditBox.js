@@ -30,7 +30,7 @@
 var SCROLLY = 40;
 var TIMER_NAME = 400;
 var LEFT_PADDING = 2;
-var Utils = require('../cocos2d/core/platform/utils');
+var Utils = require('../platform/utils');
 
 function adjustEditBoxPosition (editBox) {
     var worldPos = editBox.convertToWorldSpace(cc.p(0,0));
@@ -323,8 +323,7 @@ _ccsg.EditBox = _ccsg.Node.extend({
 
     cleanup: function () {
         this._super();
-
-        this._renderCmd._removeDomFromGameContainer();
+        this._renderCmd.removeDom();
     },
 
     _onTouchBegan: function (touch) {
@@ -670,7 +669,7 @@ _ccsg.EditBox.KeyboardReturnType = KeyboardReturnType;
 
 
     proto._createDomInput = function () {
-        this._removeDomFromGameContainer();
+        this.removeDom();
 
         var thisPointer = this;
         var tmpEdTxt = this._edTxt = document.createElement('input');
@@ -765,7 +764,7 @@ _ccsg.EditBox.KeyboardReturnType = KeyboardReturnType;
     };
 
     proto._createDomTextArea = function () {
-        this._removeDomFromGameContainer();
+        this.removeDom();
 
         var thisPointer = this;
         var tmpEdTxt = this._edTxt = document.createElement('textarea');
@@ -854,14 +853,14 @@ _ccsg.EditBox.KeyboardReturnType = KeyboardReturnType;
     proto._createLabels = function () {
         var editBoxSize = this._editBox.getContentSize();
         if(!this._textLabel) {
-            this._textLabel = new _ccsg.Label();
+            this._textLabel = _ccsg.Label.pool.get();
             this._textLabel.setAnchorPoint(cc.p(0, 1));
             this._textLabel.setOverflow(_ccsg.Label.Overflow.CLAMP);
             this._editBox.addChild(this._textLabel, 100);
         }
 
         if(!this._placeholderLabel) {
-            this._placeholderLabel = new _ccsg.Label();
+            this._placeholderLabel = _ccsg.Label.pool.get();
             this._placeholderLabel.setAnchorPoint(cc.p(0, 1));
             this._placeholderLabel.setColor(cc.Color.GRAY);
             this._editBox.addChild(this._placeholderLabel, 100);
@@ -970,12 +969,18 @@ _ccsg.EditBox.KeyboardReturnType = KeyboardReturnType;
         if (!this._editBox._alwaysOnTop) {
             if (this._edTxt.style.display === 'none') {
                 this._edTxt.style.display = '';
-                this._edTxt.focus();
+                if (cc.sys.browserType === cc.sys.BROWSER_TYPE_UC) {
+                    setTimeout(function () {
+                        this._edTxt.focus();
+                    }.bind(this), TIMER_NAME);
+                } else {
+                    this._edTxt.focus();
+                }
             }
         }
 
         if (cc.sys.isMobile && !this._editingMode) {
-            // Pre adaptation and 
+            // Pre adaptation and
             this._beginEditingOnMobile(this._editBox);
         }
         this._editingMode = true;
@@ -1042,7 +1047,7 @@ _ccsg.EditBox.KeyboardReturnType = KeyboardReturnType;
     };
 
     proto._updateDOMPlaceholderFontStyle = function () {
-        this._placeholderLabel.setFontFileOrFamily(this._editBox._placeholderFontName);
+        this._placeholderLabel.setFontFamily(this._editBox._placeholderFontName);
         this._placeholderLabel.setFontSize(this._editBox._placeholderFontSize);
     };
 
@@ -1153,7 +1158,7 @@ _ccsg.EditBox.KeyboardReturnType = KeyboardReturnType;
         }
         if(this._textLabel) {
             this._textLabel.setFontSize(this._edFontSize);
-            this._textLabel.setFontFileOrFamily(this._edFontName);
+            this._textLabel.setFontFamily(this._edFontName);
         }
     };
 
@@ -1172,7 +1177,7 @@ _ccsg.EditBox.KeyboardReturnType = KeyboardReturnType;
         cc.game.container.appendChild(this._edTxt);
     };
 
-    proto._removeDomFromGameContainer = function () {
+    proto.removeDom = function () {
         var editBox = this._edTxt;
         if(editBox){
             var hasChild = Utils.contains(cc.game.container, editBox);
@@ -1192,7 +1197,7 @@ _ccsg.EditBox.KeyboardReturnType = KeyboardReturnType;
         this._textLabel = null;
         this._placeholderLabel = null;
         this._editingMode = false;
-        
+
         this.__fullscreen = false;
         this.__autoResize = false;
         this.__rotateScreen = false;

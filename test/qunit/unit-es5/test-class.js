@@ -571,6 +571,7 @@ test('mixins', function () {
         drink: function () {},
     });
     var BigDog = cc.Class({
+        name: 'BigDog',
         extends: Dog,
         mixins: [Mixin1, Mixin2],
         properties: {
@@ -591,6 +592,10 @@ test('mixins', function () {
     deepEqual(BigDog.__props__, ['p3', 'p2', 'p1', 'p4'], 'should inherit properties');
     strictEqual(cc.Class.attr(BigDog, 'p2').default, 'Defined by Mixin2', 'last mixin property should override previous');
     strictEqual(cc.Class.attr(BigDog, 'p1').default, 'Defined by BigDog', "should override base property");
+    strictEqual(cc.js.getClassName(BigDog), 'BigDog', "should not overwrite class name");
+    strictEqual(cc.js._getClassId(BigDog), 'BigDog', "should not overwrite class id");
+
+    cc.js.unregisterClass(BigDog);
 });
 
 test('mixins ctor', function () {
@@ -676,8 +681,8 @@ test('simplified properties define', function () {
 
     var obj = new Type();
 
-    strictEqual(cc.Class.attr(Type, 'vec2').type, undefined, 'checking vec2 type');
-    strictEqual(cc.Class.attr(Type, 'vec2').ctor, undefined, 'checking vec2 ctor');
+    strictEqual(cc.Class.attr(Type, 'vec2').type, 'Object', 'checking vec2 type');
+    strictEqual(cc.Class.attr(Type, 'vec2').ctor, cc.Vec2, 'checking vec2 ctor');
     strictEqual(cc.Class.attr(Type, 'node').type, 'Object', 'checking node type');
     strictEqual(cc.Class.attr(Type, 'node').ctor, cc.Node, 'checking node ctor');
 

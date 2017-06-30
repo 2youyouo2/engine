@@ -24,7 +24,7 @@
  THE SOFTWARE.
  ****************************************************************************/
 
-var EventTarget = require("../cocos2d/core/event/event-target");
+var EventTarget = require("../event/event-target");
 
 /**
  * <p>_ccsg.Sprite is a 2d image ( http://en.wikipedia.org/wiki/Sprite_(computer_graphics) )  <br/>
@@ -761,20 +761,3 @@ cc.js.addon(_ccsg.Sprite.prototype, EventTarget.prototype);
 cc.assertID(typeof cc._tmp.PrototypeSprite === 'function', 3200, "SpritesPropertyDefine.js");
 cc._tmp.PrototypeSprite();
 delete cc._tmp.PrototypeSprite;
-
-// fireball#2856
-
-var spritePro = _ccsg.Sprite.prototype;
-Object.defineProperty(spritePro, 'visible', {
-    get: _ccsg.Node.prototype.isVisible,
-    set: spritePro.setVisible
-});
-
-Object.defineProperty(spritePro, 'ignoreAnchor', {
-    get: _ccsg.Node.prototype.isIgnoreAnchorPointForPosition,
-    set: spritePro.setIgnoreAnchorPointForPosition
-});
-
-Object.defineProperty(spritePro, 'opacityModifyRGB', {
-    get: spritePro.isOpacityModifyRGB
-});

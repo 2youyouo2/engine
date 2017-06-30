@@ -36,8 +36,6 @@ var ANCHOR_CHANGED = 'anchor-changed';
 var ROTATION_CHANGED = 'rotation-changed';
 var SCALE_CHANGED = 'scale-changed';
 
-var CHILD_ADDED = 'child-added';
-var CHILD_REMOVED = 'child-removed';
 var CHILD_REORDER = 'child-reorder';
 
 var ERR_INVALID_NUMBER = CC_EDITOR && 'The %s is invalid';
@@ -45,10 +43,13 @@ var ERR_INVALID_NUMBER = CC_EDITOR && 'The %s is invalid';
 var Misc = require('./utils/misc');
 //var RegisteredInEditor = Flags.RegisteredInEditor;
 
+var ActionManagerExist = !!cc.ActionManager;
+var emptyFunc = function () {};
+
 /**
  * !#en The event type supported by Node
  * !#zh Node 支持的事件类型
- * @enum Node.EventType
+ * @class Node.EventType
  * @static
  * @namespace Node
  */
@@ -280,6 +281,8 @@ function updateOrder (node) {
  * Cocos Creator 场景中的所有节点类。节点也继承了 {{#crossLink "EventTarget"}}EventTarget{{/crossLink}}，它允许节点发送事件。<br/>
  * 支持的节点事件，请参阅 {{#crossLink "Node.EventType"}}{{/crossLink}}。
  * @class Node
+ * @constructor
+ * @param {String} name
  * @extends _BaseNode
  */
 var Node = cc.Class({
@@ -344,6 +347,14 @@ var Node = cc.Class({
         },
 
         //properties moved from base node begin
+
+        /**
+         * !#en The position (x, y) of the node in its parent's coordinates.
+         * !#zh 节点在父节点坐标系中的位置（x, y）。
+         * @property {Vec2} position
+         * @example
+         * cc.log("Node Position: " + node.position);
+         */
 
         /**
          * !#en x axis position of node.
@@ -849,6 +860,10 @@ var Node = cc.Class({
         //properties moved from base node end
     },
 
+    /**
+     * @method constructor
+     * @param {String} [name]
+     */
     ctor (name) {
 
         /**
@@ -865,7 +880,7 @@ var Node = cc.Class({
             sgNode.onEnter = function () {
                 _ccsg.Node.prototype.onEnter.call(this);
                 if (this._entity && !this._entity._active) {
-                    cc.director._actionManager && cc.director._actionManager.pauseTarget(this);
+                    ActionManagerExist && cc.director.getActionManager().pauseTarget(this);
                     cc.eventManager.pauseTarget(this);
                 }
             };
@@ -964,8 +979,8 @@ var Node = cc.Class({
         var destroyByParent = this._onPreDestroyBase();
 
         // Actions
-        if (cc.director._actionManager) {
-            cc.director._actionManager.removeAllActionsFromTarget(this);
+        if (ActionManagerExist) {
+            cc.director.getActionManager().removeAllActionsFromTarget(this);
         }
 
         // Remove Node.currentHovered
@@ -974,7 +989,9 @@ var Node = cc.Class({
         }
 
         if (CC_JSB) {
-            this._releaseAllActions();
+            if (!cc.macro.ENABLE_GC_FOR_NATIVE_OBJECTS) {
+                this._releaseAllActions();
+            }
             if (this._touchListener) {
                 this._touchListener.release();
                 this._touchListener.owner = null;
@@ -1003,7 +1020,7 @@ var Node = cc.Class({
                 this._parent = null;
             }
         }
-        else if (CC_JSB) {
+        else if (CC_TEST ? (/* make CC_JSB mockable*/ Function('return CC_JSB'))() : CC_JSB) {
             this._sgNode.release();
             this._sgNode._entity = null;
             this._sgNode = null;
@@ -1011,7 +1028,7 @@ var Node = cc.Class({
     },
 
     _onPostActivated (active) {
-        var actionManager = cc.director._actionManager;
+        var actionManager = ActionManagerExist ? cc.director.getActionManager() : null;
         if (active) {
             // activate
             actionManager && actionManager.resumeTarget(this);
@@ -1060,8 +1077,8 @@ var Node = cc.Class({
 
         if (!this._activeInHierarchy) {
             // deactivate ActionManager and EventManager by default
-            if (cc.director._actionManager) {
-                cc.director._actionManager.pauseTarget(this);
+            if (ActionManagerExist) {
+                cc.director.getActionManager().pauseTarget(this);
             }
             cc.eventManager.pauseTarget(this);
         }
@@ -1090,13 +1107,16 @@ var Node = cc.Class({
      *                        See {{#crossLink "Node/position-changed:event"}}Node Events{{/crossLink}} for all builtin events.
      * @param {Function} callback - The callback that will be invoked when the event is dispatched.
      *                              The callback is ignored if it is a duplicate (the callbacks are unique).
-     * @param {Event} callback.param event
+     * @param {Event} callback.event event
      * @param {Object} [target] - The target to invoke the callback, can be null
-     * @param {Boolean} useCapture - When set to true, the capture argument prevents callback
+     * @param {Boolean} [useCapture=false] - When set to true, the capture argument prevents callback
      *                              from being invoked when the event's eventPhase attribute value is BUBBLING_PHASE.
      *                              When false, callback will NOT be invoked when event's eventPhase attribute value is CAPTURING_PHASE.
      *                              Either way, callback will be invoked when event's eventPhase attribute value is AT_TARGET.
      * @return {Function} - Just returns the incoming callback so you can save the anonymous function easier.
+     * @typescript
+     * on(type: string, callback: (event: Event.EventCustom) => void, target?: any, useCapture?: boolean): (event: Event.EventCustom) => void
+     * on<T>(type: string, callback: (event: T) => void, target?: any, useCapture?: boolean): (event: T) => void
      * @example
      * this.node.on(cc.Node.EventType.TOUCH_START, this.memberFunction, this);  // if "this" is component and the "memberFunction" declared in CCClass.
      * node.on(cc.Node.EventType.TOUCH_START, callback, this.node);
@@ -1164,7 +1184,7 @@ var Node = cc.Class({
      * @param {String} type - A string representing the event type being removed.
      * @param {Function} callback - The callback to remove.
      * @param {Object} [target] - The target to invoke the callback, if it's not given, only callback without target will be removed
-     * @param {Boolean} useCapture - Specifies whether the callback being removed was registered as a capturing callback or not.
+     * @param {Boolean} [useCapture=false] - Specifies whether the callback being removed was registered as a capturing callback or not.
      *                              If not specified, useCapture defaults to false. If a callback was registered twice,
      *                              one with capture and one without, each must be removed separately. Removal of a capturing callback
      *                              does not affect a non-capturing version of the same listener, and vice versa.
@@ -1197,6 +1217,38 @@ var Node = cc.Class({
 
         this._checkTouchListeners();
         this._checkMouseListeners();
+    },
+
+    /**
+     * !#en Pause node related system events registered with the current Node. Node system events includes touch and mouse events.
+     * If recursive is set to true, then this API will pause the node system events for the node and all nodes in its sub node tree.
+     * Reference: http://cocos2d-x.org/docs/editors_and_tools/creator-chapters/scripting/internal-events/
+     * !#zh 暂停当前节点上注册的所有节点系统事件，节点系统事件包含触摸和鼠标事件。
+     * 如果传递 recursive 为 true，那么这个 API 将暂停本节点和它的子树上所有节点的节点系统事件。
+     * 参考：http://cocos.com/docs/creator/scripting/internal-events.html
+     * @method pauseSystemEvents
+     * @param {Boolean} recursive - Whether to pause node system events on the sub node tree.
+     * @example
+     * node.pauseSystemEvents(true);
+     */
+    pauseSystemEvents (recursive) {
+        cc.eventManager.pauseTarget(this, recursive);
+    },
+
+    /**
+     * !#en Resume node related system events registered with the current Node. Node system events includes touch and mouse events.
+     * If recursive is set to true, then this API will resume the node system events for the node and all nodes in its sub node tree.
+     * Reference: http://cocos2d-x.org/docs/editors_and_tools/creator-chapters/scripting/internal-events/
+     * !#zh 恢复当前节点上注册的所有节点系统事件，节点系统事件包含触摸和鼠标事件。
+     * 如果传递 recursive 为 true，那么这个 API 将恢复本节点和它的子树上所有节点的节点系统事件。
+     * 参考：http://cocos.com/docs/creator/scripting/internal-events.html
+     * @method resumeSystemEvents
+     * @param {Boolean} recursive - Whether to resume node system events on the sub node tree.
+     * @example
+     * node.resumeSystemEvents(true);
+     */
+    resumeSystemEvents (recursive) {
+        cc.eventManager.resumeTarget(this, recursive);
     },
 
     _checkTouchListeners () {
@@ -1252,7 +1304,15 @@ var Node = cc.Class({
         var w = this.width,
             h = this.height;
         var rect = cc.rect(0, 0, w, h);
-        var trans = this.getNodeToWorldTransform();
+        
+        var trans;
+        if (cc.Camera && cc.Camera.main) {
+            trans = cc.Camera.main.getNodeToCameraTransform(this);
+        }
+        else {
+            trans = this.getNodeToWorldTransform();
+        }
+
         cc._rectApplyAffineTransformIn(rect, trans);
         var left = point.x - rect.x,
             right = rect.x + rect.width - point.x,
@@ -1332,14 +1392,42 @@ var Node = cc.Class({
      * node.runAction(action).repeatForever(); // fail
      * node.runAction(action.repeatForever()); // right
      */
-    runAction (action) {
-        if (!this.active || !cc.director._actionManager)
+    runAction: ActionManagerExist ? function (action) {
+        if (!this.active)
             return;
         cc.assertID(action, 1618);
 
-        cc.director._actionManager.addAction(action, this, false);
+        if (!cc.macro.ENABLE_GC_FOR_NATIVE_OBJECTS) {
+            this._retainAction(action);
+        }
+        if (CC_JSB) {
+            this._sgNode._owner = this;
+        }
+        cc.director.getActionManager().addAction(action, this, false);
         return action;
-    },
+    } : emptyFunc,
+
+    /**
+     * !#en Pause all actions running on the current node. Equals to `cc.director.getActionManager().pauseTarget(node)`.
+     * !#zh 暂停本节点上所有正在运行的动作。和 `cc.director.getActionManager().pauseTarget(node);` 等价。
+     * @method pauseAllActions
+     * @example
+     * node.pauseAllActions();
+     */
+    pauseAllActions: ActionManagerExist ? function () {
+        cc.director.getActionManager().pauseTarget(this);
+    } : emptyFunc,
+
+    /**
+     * !#en Resume all paused actions on the current node. Equals to `cc.director.getActionManager().resumeTarget(node)`.
+     * !#zh 恢复运行本节点上所有暂停的动作。和 `cc.director.getActionManager().resumeTarget(node);` 等价。
+     * @method resumeAllActions
+     * @example
+     * node.resumeAllActions();
+     */
+    resumeAllActions: ActionManagerExist ? function () {
+        cc.director.getActionManager().resumeTarget(this);
+    } : emptyFunc,
 
     /**
      * !#en Stops and removes all actions from the running action list .
@@ -1348,11 +1436,9 @@ var Node = cc.Class({
      * @example
      * node.stopAllActions();
      */
-    stopAllActions () {
-        if (cc.director._actionManager) {
-            cc.director._actionManager.removeAllActionsFromTarget(this);
-        }
-    },
+    stopAllActions: ActionManagerExist ? function () {
+        cc.director.getActionManager().removeAllActionsFromTarget(this);
+    } : emptyFunc,
 
     /**
      * !#en Stops and removes an action from the running action list.
@@ -1363,11 +1449,9 @@ var Node = cc.Class({
      * var action = cc.scaleTo(0.2, 1, 0.6);
      * node.stopAction(action);
      */
-    stopAction (action) {
-        if (cc.director._actionManager) {
-            cc.director._actionManager.removeAction(action);
-        }
-    },
+    stopAction: ActionManagerExist ? function (action) {
+        cc.director.getActionManager().removeAction(action);
+    } : emptyFunc,
 
     /**
      * !#en Removes an action from the running action list by its tag.
@@ -1377,15 +1461,13 @@ var Node = cc.Class({
      * @example
      * node.stopAction(1);
      */
-    stopActionByTag (tag) {
+    stopActionByTag: ActionManagerExist ? function (tag) {
         if (tag === cc.Action.TAG_INVALID) {
             cc.logID(1612);
             return;
         }
-        if (cc.director._actionManager) {
-            cc.director._actionManager.removeActionByTag(tag, this);
-        }
-    },
+        cc.director.getActionManager().removeActionByTag(tag, this);
+    } : emptyFunc,
 
     /**
      * !#en Returns an action from the running action list by its tag.
@@ -1397,12 +1479,14 @@ var Node = cc.Class({
      * @example
      * var action = node.getActionByTag(1);
      */
-    getActionByTag (tag) {
+    getActionByTag: ActionManagerExist ? function (tag) {
         if (tag === cc.Action.TAG_INVALID) {
             cc.logID(1613);
             return null;
         }
-        return cc.director._actionManager ? cc.director._actionManager.getActionByTag(tag, this) : null;
+        return cc.director.getActionManager().getActionByTag(tag, this);
+    } : function () {
+        return null;
     },
 
     /**
@@ -1423,8 +1507,26 @@ var Node = cc.Class({
      * var count = node.getNumberOfRunningActions();
      * cc.log("Running Action Count: " + count);
      */
-    getNumberOfRunningActions () {
-        return cc.director._actionManager ? cc.director._actionManager.getNumberOfRunningActionsInTarget(this) : 0;
+    getNumberOfRunningActions: ActionManagerExist ? function () {
+        return cc.director.getActionManager().getNumberOfRunningActionsInTarget(this);
+    } : function () {
+        return 0;
+    },
+
+    _retainAction (action) {
+        if (CC_JSB && action instanceof cc.Action && this._retainedActions.indexOf(action) === -1) {
+            this._retainedActions.push(action);
+            action.retain();
+        }
+    },
+
+    _releaseAllActions () {
+        if (CC_JSB) {
+            for (var i = 0; i < this._retainedActions.length; ++i) {
+                this._retainedActions[i].release();
+            }
+            this._retainedActions.length = 0;
+        }
     },
 
     setTag (value) {
@@ -1433,46 +1535,44 @@ var Node = cc.Class({
     },
 
     /**
-     * !#en Returns a copy of the position (x,y) of the node in cocos2d coordinates. (0,0) is the left-bottom corner.
-     * !#zh 获取在父节点坐标系中节点的位置（ x , y ）。
+     * !#en Returns a copy of the position (x, y) of the node in its parent's coordinates.
+     * !#zh 获取节点在父节点坐标系中的位置（x, y）。
      * @method getPosition
-     * @return {Vec2} The position (x,y) of the node in OpenGL coordinates
+     * @return {Vec2} The position (x, y) of the node in its parent's coordinates
      * @example
      * cc.log("Node Position: " + node.getPosition());
      */
     getPosition () {
-        return cc.p(this._position);
+        return new cc.Vec2(this._position);
     },
 
     /**
      * !#en
-     * Changes the position (x,y) of the node in cocos2d coordinates.<br/>
-     * The original point (0,0) is at the left-bottom corner of screen.<br/>
-     * Usually we use cc.v2(x,y) to compose CCVec2 object.<br/>
-     * and Passing two numbers (x,y) is more efficient than passing CCPoint object.
+     * Sets the position (x, y) of the node in its parent's coordinates.<br/>
+     * Usually we use cc.v2(x, y) to compose cc.Vec2 object.<br/>
+     * and Passing two numbers (x, y) is more efficient than passing cc.Vec2 object.
      * !#zh
-     * 设置节点在父坐标系中的位置。<br/>
-     * 可以通过 2 种方式设置坐标点：<br/>
-     * 1.传入 cc.v2(x, y) 类型为 cc.Vec2 的对象。<br/>
-     * 2.传入 2 个数值 x 和 y。
+     * 设置节点在父节点坐标系中的位置。<br/>
+     * 可以通过两种方式设置坐标点：<br/>
+     * 1. 传入 2 个数值 x 和 y。<br/>
+     * 2. 传入 cc.v2(x, y) 类型为 cc.Vec2 的对象。
      * @method setPosition
-     * @param {Vec2|Number} newPosOrxValue - The position (x,y) of the node in coordinates or the X coordinate for position
-     * @param {Number} [yValue] - Y coordinate for position
+     * @param {Vec2|Number} newPosOrX - X coordinate for position or the position (x, y) of the node in coordinates
+     * @param {Number} [y] - Y coordinate for position
      * @example {@link utils/api/engine/docs/cocos2d/core/utils/base-node/setPosition.js}
      */
-    setPosition (newPosOrxValue, yValue) {
-        var xValue;
-        if (typeof yValue === 'undefined') {
-            xValue = newPosOrxValue.x;
-            yValue = newPosOrxValue.y;
+    setPosition (newPosOrX, y) {
+        var x;
+        if (typeof y === 'undefined') {
+            x = newPosOrX.x;
+            y = newPosOrX.y;
         }
         else {
-            xValue = newPosOrxValue;
-            yValue = yValue;
+            x = newPosOrX;
         }
 
         var locPosition = this._position;
-        if (locPosition.x === xValue && locPosition.y === yValue) {
+        if (locPosition.x === x && locPosition.y === y) {
             return;
         }
 
@@ -1480,20 +1580,20 @@ var Node = cc.Class({
             var oldPosition = new cc.Vec2(locPosition);
         }
 
-        if (!CC_EDITOR || isFinite(xValue)) {
-            locPosition.x = xValue;
+        if (!CC_EDITOR || isFinite(x)) {
+            locPosition.x = x;
         }
         else {
             return cc.error(ERR_INVALID_NUMBER, 'x of new position');
         }
-        if (!CC_EDITOR || isFinite(yValue)) {
-            locPosition.y = yValue;
+        if (!CC_EDITOR || isFinite(y)) {
+            locPosition.y = y;
         }
         else {
             return cc.error(ERR_INVALID_NUMBER, 'y of new position');
         }
 
-        this._sgNode.setPosition(xValue, yValue);
+        this._sgNode.setPosition(x, y);
 
         // fast check event
         var capListeners = this._capturingListeners &&
@@ -1532,7 +1632,7 @@ var Node = cc.Class({
      * !#zh 设置节点的缩放比例，默认值为 1.0。这个函数可以在同一时间修改 X 和 Y 缩放。
      * @method setScale
      * @param {Number|Vec2} scaleX - scaleX or scale
-     * @param {Number} [scaleY=scale]
+     * @param {Number} [scaleY]
      * @example
      * node.setScale(cc.v2(1, 1));
      * node.setScale(1, 1);
@@ -1570,7 +1670,7 @@ var Node = cc.Class({
         if (this._sizeProvider && !ignoreSizeProvider) {
             var size = this._sizeProvider.getContentSize();
             this._contentSize = size;
-            return size;
+            return cc.size(size);
         }
         else {
             return cc.size(this._contentSize);
@@ -2173,7 +2273,7 @@ var Node = cc.Class({
 
     /**
      * !#en
-     * "add" logic MUST only be in this method <br/>
+     * Adds a child to the node with z order and tag.
      * !#zh
      * 添加子节点，并且可以修改该节点的 局部 Z 顺序和标签。
      * @method addChild
@@ -2222,7 +2322,7 @@ var Node = cc.Class({
      */
     cleanup () {
         // actions
-        cc.director._actionManager && cc.director._actionManager.removeAllActionsFromTarget(this);
+        ActionManagerExist && cc.director.getActionManager().removeAllActionsFromTarget(this);
         // event
         cc.eventManager.removeListeners(this);
 
@@ -2316,7 +2416,7 @@ var Node = cc.Class({
         sgNode.setColor(this._color);
 
         // update ActionManager and EventManager because sgNode maybe changed
-        var actionManager = cc.director._actionManager;
+        var actionManager = ActionManagerExist ? cc.director.getActionManager() : null;
         if (this._activeInHierarchy) {
             actionManager && actionManager.resumeTarget(this);
             cc.eventManager.resumeTarget(this);
@@ -2360,7 +2460,7 @@ var Node = cc.Class({
 
         this._onRestoreBase();
 
-        var actionManager = cc.director._actionManager;
+        var actionManager = cc.director.getActionManager();
         if (this._activeInHierarchy) {
             actionManager && actionManager.resumeTarget(this);
             cc.eventManager.resumeTarget(this);
@@ -2412,35 +2512,35 @@ if (CC_JSB) {
 
 /**
  * @event position-changed
- * @param {Event} event
+ * @param {Event.EventCustom} event
  * @param {Vec2} event.detail - The old position, but this parameter is only available in editor!
  */
 /**
  * @event size-changed
- * @param {Event} event
+ * @param {Event.EventCustom} event
  * @param {Size} event.detail - The old size, but this parameter is only available in editor!
  */
 /**
  * @event anchor-changed
- * @param {Event} event
+ * @param {Event.EventCustom} event
  */
 /**
  * @event child-added
- * @param {Event} event
+ * @param {Event.EventCustom} event
  * @param {Node} event.detail - child
  */
 /**
  * @event child-removed
- * @param {Event} event
+ * @param {Event.EventCustom} event
  * @param {Node} event.detail - child
  */
 /**
  * @event child-reorder
- * @param {Event} event
+ * @param {Event.EventCustom} event
  */
 /**
  * @event group-changed
- * @param {Event} event
+ * @param {Event.EventCustom} event
  */
 
 /**
@@ -2542,24 +2642,6 @@ if (CC_JSB) {
  * @param {Boolean} cascadeOpacityEnabled
  * @example
  * node.setCascadeOpacityEnabled(true);
- */
-
-/*
- * !#en Returns whether node's color value affect its child nodes.
- * !#zh 返回节点的颜色值是否影响其子节点。
- * @method isCascadeColorEnabled
- * @returns {Boolean}
- * @example
- * cc.log(node.isCascadeColorEnabled());
- */
-
-/**
- * !#en Enable or disable cascade color, if cascade enabled, child nodes' opacity will be the cascade value of parent color and its own color.
- * !#zh 启用或禁用级连颜色，如果级连启用，子节点的颜色将是父颜色和它自己的颜色的级连值。
- * @method setCascadeColorEnabled
- * @param {Boolean} cascadeColorEnabled
- * @example
- * node.setCascadeColorEnabled(true);
  */
 
 var SameNameGetSets = ['parent', 'tag', 'skewX', 'skewY', 'position', 'rotation', 'rotationX', 'rotationY',

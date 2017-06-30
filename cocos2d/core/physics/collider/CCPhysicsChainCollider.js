@@ -25,18 +25,35 @@
 
 var PTM_RATIO = require('../CCPhysicsTypes').PTM_RATIO;
 
+/**
+ * @class PhysicsChainCollider
+ * @extends PolygonCollider
+ */
 var PhysicsChainCollider = cc.Class({
     name: 'cc.PhysicsChainCollider',
-    extends: cc.Collider,
-    mixins: [cc.PhysicsCollider],
+    extends: cc.PhysicsCollider,
 
-    editor: CC_EDITOR && {
-        menu: 'i18n:MAIN_MENU.component.physics/Collider/Chain',
-        inspector: 'packages://inspector/inspectors/comps/physics/points-base-collider.js',
+    editor: {
+        menu: CC_EDITOR && 'i18n:MAIN_MENU.component.physics/Collider/Chain',
+        inspector: CC_EDITOR && 'packages://inspector/inspectors/comps/physics/points-base-collider.js',
+        requireComponent: cc.RigidBody
     },
 
-    properties: cc.js.mixin({
+    properties: {
+        /**
+         * !#en Whether the chain is loop
+         * !#zh 链条是否首尾相连
+         * @property loop
+         * @type {Boolean}
+         */
         loop: false,
+
+        /**
+         * !#en Chain points
+         * !#zh 链条顶点数组
+         * @property points
+         * @type {[Vec2]}
+         */
         points: {
             default: function () {
                  return [cc.v2(-50, 0), cc.v2(50, 0)];
@@ -49,7 +66,7 @@ var PhysicsChainCollider = cc.Class({
             serializable: false,
             visible: false
         },
-    }, cc.PhysicsCollider.properties),
+    },
 
     _createShape: function (scale) {
         var shape = new b2.ChainShape();

@@ -26,70 +26,71 @@
 var PTM_RATIO = require('../CCPhysicsTypes').PTM_RATIO;
 var PolygonSeprator = require('../CCPolygonSeprator');
 
+/**
+ * @class PhysicsPolygonCollider
+ * @extends PhysicsCollider
+ * @uses Collider.Polygon
+ */
 var PhysicsPolygonCollider = cc.Class({
     name: 'cc.PhysicsPolygonCollider',
-    extends: cc.PolygonCollider,
-    mixins: [cc.PhysicsCollider],
+    extends: cc.PhysicsCollider,
+    mixins: [cc.Collider.Polygon],
 
-    editor: CC_EDITOR && {
-        menu: 'i18n:MAIN_MENU.component.physics/Collider/Polygon',
-        inspector: 'packages://inspector/inspectors/comps/physics/points-base-collider.js',
+    editor: {
+        menu: CC_EDITOR && 'i18n:MAIN_MENU.component.physics/Collider/Polygon',
+        inspector: CC_EDITOR && 'packages://inspector/inspectors/comps/physics/points-base-collider.js',
+        requireComponent: cc.RigidBody
     },
-
-    properties: cc.PhysicsCollider.properties,
 
     _createShape: function (scale) {
         var shapes = [];
 
         var points = this.points;
-        var ret = PolygonSeprator.validate(points);
-
-        if (ret === 2) {
-            points = points.reverse();
-            ret = PolygonSeprator.validate(points);
+        
+        // check if last point equal to first point
+        if (points.length > 0 && points[0].equals(points[points.length - 1])) {
+            points.length -= 1;
         }
 
-        if (ret === 0) {
-            var polys = PolygonSeprator.calcShapes(points);
+        var polys = PolygonSeprator(points);
+        var offset = this.offset;
 
-            for (var i = 0; i < polys.length; i++) {
-                var poly = polys[i];
+        for (var i = 0; i < polys.length; i++) {
+            var poly = polys[i];
 
-                var shape = null, vertices = [];
-                var firstVertice;
-                
-                for (var j = 0, l = poly.length; j < l; j++) {
-                    if (!shape) {
-                        shape = new b2.PolygonShape();
-                    }
-                    var p = poly[j];
-                    var v = new b2.Vec2(p.x/PTM_RATIO*scale.x, p.y/PTM_RATIO*scale.y);
-                    vertices.push( v );
+            var shape = null, vertices = [];
+            var firstVertice = null;
+            
+            for (var j = 0, l = poly.length; j < l; j++) {
+                if (!shape) {
+                    shape = new b2.PolygonShape();
+                }
+                var p = poly[j];
+                var x = (p.x + offset.x)/PTM_RATIO*scale.x;
+                var y = (p.y + offset.y)/PTM_RATIO*scale.y;
+                var v = new b2.Vec2(x, y);
+                vertices.push( v );
 
-                    if (!firstVertice) {
-                        firstVertice = v;
-                    }
-
-                    if (vertices.length === b2.maxPolygonVertices) {
-                        shape.Set(vertices, vertices.length);
-                        shapes.push(shape);
-
-                        shape = null;
-
-                        if (j < l - 1) {
-                            vertices = [firstVertice, vertices[vertices.length - 1]];
-                        }
-                    }
+                if (!firstVertice) {
+                    firstVertice = v;
                 }
 
-                if (shape) {
+                if (vertices.length === b2.maxPolygonVertices) {
                     shape.Set(vertices, vertices.length);
                     shapes.push(shape);
+
+                    shape = null;
+
+                    if (j < l - 1) {
+                        vertices = [firstVertice, vertices[vertices.length - 1]];
+                    }
                 }
             }
-        }
-        else {
-            console.log("Failed to create convex polygon : " + ret);
+
+            if (shape) {
+                shape.Set(vertices, vertices.length);
+                shapes.push(shape);
+            }
         }
 
         return shapes;

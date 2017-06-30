@@ -18,6 +18,7 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE.
  ****************************************************************************/
+var Utils = require('../platform/utils');
 
 _ccsg.WebView = _ccsg.Node.extend(/** @lends _ccsg.WebView# */{
 
@@ -181,12 +182,8 @@ _ccsg.WebView = _ccsg.Node.extend(/** @lends _ccsg.WebView# */{
         this._renderCmd.updateSize(width, height);
     },
 
-    /**
-     * remove node
-     */
-    cleanup: function(){
+    cleanup: function () {
         this._super();
-
         this._renderCmd.removeDom();
     },
 
@@ -345,6 +342,8 @@ _ccsg.WebView.EventType = {
             this._div.style["-webkit-overflow-scrolling"] = "touch";
             this._iframe = document.createElement("iframe");
             this._div.appendChild(this._iframe);
+            this._iframe.style.width = "100%";
+            this._iframe.style.height = "100%";
         }else{
             this._div = this._iframe = document.createElement("iframe");
         }
@@ -357,7 +356,7 @@ _ccsg.WebView.EventType = {
         this._div.style.height = contentSize.height + "px";
         this._div.style.width = contentSize.width + "px";
         this._div.style.overflow = "scroll";
-        this._div.style.border = "none";
+        this._iframe.style.border = "none";
         cc.game.container.appendChild(this._div);
         this.updateVisibility();
     };
@@ -371,12 +370,7 @@ _ccsg.WebView.EventType = {
     proto.removeDom = function(){
         var div = this._div;
         if(div){
-            var hasChild = false;
-            if('contains' in cc.game.container) {
-                hasChild = cc.game.container.contains(div);
-            }else {
-                hasChild = cc.game.container.compareDocumentPosition(div) % 16;
-            }
+            var hasChild = Utils.contains(cc.game.container, div);
             if(hasChild)
                 cc.game.container.removeChild(div);
         }
@@ -389,19 +383,8 @@ _ccsg.WebView.EventType = {
         var div = this._div;
         if (node.visible) {
             div.style.visibility = 'visible';
-            cc.game.container.appendChild(div);
         } else {
             div.style.visibility = 'hidden';
-            if(div){
-                var hasChild = false;
-                if('contains' in cc.game.container) {
-                    hasChild = cc.game.container.contains(div);
-                }else {
-                    hasChild = cc.game.container.compareDocumentPosition(div) % 16;
-                }
-                if(hasChild)
-                    cc.game.container.removeChild(div);
-            }
         }
     };
 

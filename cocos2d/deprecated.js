@@ -326,7 +326,10 @@ if (CC_DEV) {
                             return x.trim();
                         });
                 }
-                js.getset(owner, prop, accessor.bind(null, getset[0]), getset[1] && accessor.bind(null, getset[1]));
+                try {
+                    js.getset(owner, prop, accessor.bind(null, getset[0]), getset[1] && accessor.bind(null, getset[1]));
+                }
+                catch (e) {}
             }
             var getset = obj[prop];
             if (prop[0] === '*') {
@@ -346,6 +349,12 @@ if (CC_DEV) {
             }
         }
     }
+
+    // cc.director
+
+    provideClearError(cc.Director.prototype, {
+        getSecondsPerFrame : 'getDeltaTime'
+    });
 
     // cc.loader
 
@@ -578,6 +587,9 @@ if (CC_DEV) {
             'grid',
             'userData',
             'userObject',
+            'actionManager',
+            'getActionManager',
+            'setActionManager',
             'getNormalizedPosition',
             'setNormalizedPosition',
             'getCamera',
@@ -616,7 +628,6 @@ if (CC_DEV) {
     }
 
     markAsRemoved(cc.Scale9Sprite, [
-        'init',
         'resizableSpriteWithCapInsets',
         'updateWithSprite',
         'getOriginalSize',
@@ -687,5 +698,5 @@ if (CC_DEV) {
 
 }
 
-// remove after 1.5
+// remove after 1.6
 js.obsolete(cc.loader, 'cc.loader.loadResAll', 'loadResDir');
