@@ -35,10 +35,14 @@ var Filter = cc.Class({
     },
 
     properties: {
-      filters: {
-        default: [],
-        type: [cc.FilterShader]
-      }
+        preview: {
+            default: false,
+            editorOnly: true
+        },
+        filters: {
+            default: [],
+            type: [cc.FilterShader]
+        }
     },
 
     onLoad: function () {
@@ -62,6 +66,8 @@ var Filter = cc.Class({
     _initSgNode: function () {},
 
     onBeginDraw: function () {
+        if (CC_EDITOR && !this.preview) return false;
+
         var filters = this._filters = this.filters.filter(function (filter) {
             return filter.valid && filter.valid();
         });
