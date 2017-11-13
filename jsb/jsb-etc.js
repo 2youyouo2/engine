@@ -49,47 +49,10 @@ cc.js.mixin(cc.path, {
     sep: (cc.sys.os === cc.sys.OS_WINDOWS ? '\\' : '/'),
 
     // @param {string} path
-    // @param {boolean|string} [endsWithSep = true]
-    // @returns {string}
-    _setEndWithSep: function (path, endsWithSep) {
-        var sep = cc.path.sep;
-        if (typeof endsWithSep === 'undefined') {
-            endsWithSep = true;
-        }
-        else if (typeof endsWithSep === 'string') {
-            sep = endsWithSep;
-            endsWithSep = !!endsWithSep;
-        }
-
-        var endChar = path[path.length - 1];
-        var oldEndWithSep = (endChar === '\\' || endChar === '/');
-        if (!oldEndWithSep && endsWithSep) {
-            path += sep;
-        }
-        else if (oldEndWithSep && !endsWithSep) {
-            path = path.slice(0, -1);
-        }
-        return path;
+    stripSep (path) {
+        return path.replace(/[\/\\]$/, '');
     }
 });
-
-// cc.Scheduler
-cc.Scheduler.prototype.schedule = function (callback, target, interval, repeat, delay, paused) {
-    repeat = isFinite(repeat) ? repeat : cc.macro.REPEAT_FOREVER;
-    delay =  delay || 0;
-    paused = !!paused;
-    this.scheduleCallbackForTarget(target, callback, interval, repeat, delay, paused);
-};
-cc.Scheduler.prototype.scheduleUpdate = cc.Scheduler.prototype.scheduleUpdateForTarget;
-cc.Scheduler.prototype._unschedule = cc.Scheduler.prototype.unschedule;
-cc.Scheduler.prototype.unschedule = function (callback, target) {
-    if (typeof target === 'function') {
-        var tmp = target;
-        target = callback;
-        callback = tmp;
-    }
-    this._unschedule(target, callback);
-};
 
 // Node
 var nodeProto = cc.Node.prototype;
@@ -103,6 +66,7 @@ cc.view.setOrientation = function () {};
 var _windowTimeIntervalId = 0;
 var _windowTimeFunHash = {};
 var WindowTimeFun = function (code) {
+    this.__instanceId = cc.ClassManager.getNewInstanceId();
     this._intervalId = _windowTimeIntervalId++;
     this._code = code;
 };
@@ -124,17 +88,16 @@ WindowTimeFun.prototype.fun = function () {
  @param {number} delay
  @return {number}
  */
-window.setTimeout = function (code, delay, ...args) {
+window.setTimeout = function (code, delay) {
     var target = new WindowTimeFun(code);
-    if (args.length > 0) {
-        target._args = args;
-    }
+    if (arguments.length > 2)
+        target._args = Array.prototype.slice.call(arguments, 2);
     var original = target.fun;
     target.fun = function () {
-        original.call(this);
+        original.apply(this, arguments);
         clearTimeout(target._intervalId);
     };
-    cc.director.getScheduler()._schedule(target.fun, target, delay / 1000, 0, 0, false, target._intervalId+'');
+    cc.director.getScheduler().schedule(target.fun, target, delay / 1000, 0, 0, false);
     _windowTimeFunHash[target._intervalId] = target;
     return target._intervalId;
 };
@@ -145,12 +108,12 @@ window.setTimeout = function (code, delay, ...args) {
  @param {number} delay
  @return {number}
  */
-window.setInterval = function (code, delay, ...args) {
+window.setInterval = function (code, delay) {
     var target = new WindowTimeFun(code);
-    if (args.length > 0) {
-        target._args = args;
-    }
-    cc.director.getScheduler()._schedule(target.fun, target, delay / 1000, cc.macro.REPEAT_FOREVER, 0, false, target._intervalId+'');
+    if (arguments.length > 2)
+        target._args = Array.prototype.slice.call(arguments, 2);
+
+    cc.director.getScheduler().schedule(target.fun, target, delay / 1000, cc.macro.REPEAT_FOREVER, 0, false);
     _windowTimeFunHash[target._intervalId] = target;
     return target._intervalId;
 };
@@ -162,7 +125,7 @@ window.setInterval = function (code, delay, ...args) {
 window.clearInterval = function (intervalId) {
     var target = _windowTimeFunHash[intervalId];
     if (target) {
-        cc.director.getScheduler()._unschedule(target._intervalId+'', target);
+        cc.director.getScheduler().unschedule(target.fun, target);
         delete _windowTimeFunHash[intervalId];
     }
 };
@@ -171,15 +134,14 @@ window.clearTimeout = clearInterval;
 // SocketIO
 if (window.SocketIO) {
     window.io = window.SocketIO;
+    SocketIO.prototype._jsbEmit = SocketIO.prototype.emit;
+    SocketIO.prototype.emit = function (uri, delegate) {
+        if (typeof delegate === 'object') {
+            delegate = JSON.stringify(delegate);
+        }
+        this._jsbEmit(uri, delegate);
+    };
 }
-
-SocketIO.prototype._jsbEmit = SocketIO.prototype.emit;
-SocketIO.prototype.emit = function (uri, delegate) {
-    if (typeof delegate === 'object') {
-        delegate = JSON.stringify(delegate);
-    }
-    this._jsbEmit(uri, delegate);
-};
 
 cc.Node.prototype.setIgnoreAnchorPointForPosition = cc.Node.prototype.ignoreAnchorPointForPosition;
 
@@ -203,10 +165,6 @@ window._ccsg = {
     CameraNode: cc.CameraNode
 };
 
-// __errorHandler
-window.__errorHandler = function (filename, lineno, message) {
-};
-
 // fix cc.formatStr (#2630)
 cc.formatStr = cc.js.formatStr;
 
@@ -214,3 +172,21 @@ cc.formatStr = cc.js.formatStr;
 if (cc.Image && cc.Image.setPNGPremultipliedAlphaEnabled) {
     cc.Image.setPNGPremultipliedAlphaEnabled(false);
 }
+
+// __errorHandler
+// window.__errorHandler = function (filename, lineno, message, stack) {
+// };
+
+// global cleanup. Dangerous!!! please do not invoke this function, it's used internally by the restart process
+window.__cleanup = function () {
+    // Destroy scene
+    cc.director.getScene().destroy();
+    cc.Object._deferredDestroy();
+    // Reset other js caches
+    cc.js._registeredClassIds = {};
+    cc.js._registeredClassNames = {};
+    // Cleanup loader
+    cc.loader.releaseAll();
+    // Cleanup textureCache
+    cc.textureCache.removeAllTextures();
+};

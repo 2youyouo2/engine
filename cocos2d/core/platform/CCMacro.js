@@ -26,8 +26,6 @@
 
 require('./_CCClass');
 
-cc._tmp = cc._tmp || {};
-
 /**
  * !#en Key map for keyboard event
  * !#zh 键盘事件的按键值
@@ -1651,15 +1649,36 @@ cc.macro = {
      *                                                                                  <br/>
      *  Affected nodes:                                                                 <br/>
      *      - _ccsg.Sprite                                                              <br/>
-     *      - _ccsg.TMXTiledMap                                                         <br/>
      *                                                                                  <br/>
-     *  Enabled by default. To disabled set it to 0. <br/>
+     *  Disabled by default. To enabled set it to 1. <br/>
      *  To modify it, in Web engine please refer to CCMacro.js, in JSB please refer to CCConfig.h
      * </p>
      *
      * @property {Number} FIX_ARTIFACTS_BY_STRECHING_TEXEL
      */
     FIX_ARTIFACTS_BY_STRECHING_TEXEL: 0,
+
+    /**
+     * <p>
+     *   If enabled, the texture coordinates will be calculated by using this formula: <br/>
+     *      - texCoord.left = (rect.x*2+1) / (texture.wide*2);                  <br/>
+     *      - texCoord.right = texCoord.left + (rect.width*2-2)/(texture.wide*2); <br/>
+     *                                                                                 <br/>
+     *  The same for bottom and top.                                                   <br/>
+     *                                                                                 <br/>
+     *  This formula prevents artifacts by using 99% of the texture.                   <br/>
+     *  The "correct" way to prevent artifacts is by expand the texture's border with the same color by 1 pixel<br/>
+     *                                                                                  <br/>
+     *  Affected nodes:                                                                 <br/>
+     *      - _ccsg.TMXLayer                                                       <br/>
+     *                                                                                  <br/>
+     *  Enabled by default. To disabled set it to 0. <br/>
+     *  To modify it, in Web engine please refer to CCMacro.js, in JSB please refer to CCConfig.h
+     * </p>
+     *
+     * @property {Number} FIX_ARTIFACTS_BY_STRECHING_TEXEL_TMX
+     */
+    FIX_ARTIFACTS_BY_STRECHING_TEXEL_TMX: 1,
 
     /**
      * Position of the FPS (Default: 0,0 (bottom-left corner))<br/>
@@ -1724,31 +1743,6 @@ cc.macro = {
      * @property {Number} OPTIMIZE_BLEND_FUNC_FOR_PREMULTIPLIED_ALPHA
      */
     OPTIMIZE_BLEND_FUNC_FOR_PREMULTIPLIED_ALPHA: 0,
-
-    /**
-     * <p>
-     *   Use GL_TRIANGLE_STRIP instead of GL_TRIANGLES when rendering the texture atlas.<br/>
-     *   It seems it is the recommend way, but it is much slower, so, enable it at your own risk<br/>
-     *   <br/>
-     *   To enable set it to a value different than 0. Disabled by default.<br/>
-     *   To modify it, in Web engine please refer to CCMacro.js, in JSB please refer to CCConfig.h
-     * </p>
-     * @property {Number} TEXTURE_ATLAS_USE_TRIANGLE_STRIP
-     */
-    TEXTURE_ATLAS_USE_TRIANGLE_STRIP: 0,
-
-    /**
-     * <p>
-     *    By default, cc.TextureAtlas (used by many cocos2d classes) will use VAO (Vertex Array Objects).<br/>
-     *    Apple recommends its usage but they might consume a lot of memory, specially if you use many of them.<br/>
-     *    So for certain cases, where you might need hundreds of VAO objects, it might be a good idea to disable it.<br/>
-     *    <br/>
-     *    To disable it set it to 0. disable by default.(Not Supported on WebGL)<br/>
-     *    To modify it, in Web engine please refer to CCMacro.js, in JSB please refer to CCConfig.h
-     * </p>
-     * @property {Number} TEXTURE_ATLAS_USE_VAO
-     */
-    TEXTURE_ATLAS_USE_VAO: 0,
 
     /**
      * <p>
@@ -1873,7 +1867,7 @@ cc.macro = {
      * 最大可以被单次批处理渲染的顶点数量。
      * @property {Number} BATCH_VERTEX_COUNT
      */
-    BATCH_VERTEX_COUNT: 2000,
+    BATCH_VERTEX_COUNT: 20000,
 
     /**
      * !#en 
@@ -1889,11 +1883,9 @@ cc.macro = {
 
     /**
      * !#en 
-     * Whether or not enabled tiled map auto culling.
-     * If you use cc.Camera as tiled map's camera, please disable this macro.
+     * Whether or not enabled tiled map auto culling. If you set the TiledMap skew or rotation, then need to manually disable this, otherwise, the rendering will be wrong.
      * !#zh
-     * 是否开启瓦片地图的自动裁减功能。
-     * 如果需要使用 cc.Camera 来作为瓦片地图的摄像机的话，那么请关闭此宏
+     * 是否开启瓦片地图的自动裁减功能。瓦片地图如果设置了 skew, rotation 的话，需要手动关闭，否则渲染会出错。
      * @property {Boolean} ENABLE_TILEDMAP_CULLING
      * @default true
      */
@@ -1926,11 +1918,44 @@ cc.macro = {
 };
 
 /**
- * @module cc
+ * !#en
+ * Whether or not enable auto culling.
+ * If your game have more dynamic objects, we suggest to disable auto culling.
+ * If your game have more static objects, we suggest to enable auto culling.
+ * !#zh
+ * 是否开启自动裁减功能，开启裁减功能将会把在屏幕外的物体从渲染队列中去除掉。
+ * 如果游戏中的动态物体比较多的话，建议将此选项关闭。
+ * 如果游戏中的静态物体比较多的话，建议将此选项打开。
+ * @property {Boolean} ENABLE_CULLING
+ * @default true
  */
+var ENABLE_CULLING = true;
+cc.defineGetterSetter(cc.macro, 'ENABLE_CULLING', 
+    function () {
+        return ENABLE_CULLING;
+    },
+    function (val) {
+        ENABLE_CULLING = val;
+
+        var scene = cc.director.getScene();
+        if (!scene) return;
+
+        if (CC_JSB) {
+            scene._sgNode.markCullingDirty();
+            cc.director.setCullingEnabled(val);
+        }
+        else {
+            scene._sgNode._renderCmd.setDirtyFlag(_ccsg.Node._dirtyFlags.cullingDirty);
+            cc.renderer.childrenOrderDirty = true;
+        }
+    }
+)
 
 /**
+ * !#en
  * default gl blend src function. Compatible with premultiplied alpha images.
+ * !#zh
+ * 默认的混合源模式
  * @property BLEND_SRC
  * @type {Number}
  */
@@ -1943,6 +1968,10 @@ cc.defineGetterSetter(cc.macro, "BLEND_SRC", function (){
         return cc.macro.SRC_ALPHA;
     }
 });
+
+/**
+ * @module cc
+ */
 
 /**
  * <p>
@@ -2072,7 +2101,7 @@ cc.incrementGLDraws = function (addNumber) {
  * @method checkGLErrorDebug
  */
 cc.checkGLErrorDebug = function () {
-    if (cc.renderMode === cc.game.RENDER_TYPE_WEBGL) {
+    if (cc._renderType === cc.game.RENDER_TYPE_WEBGL) {
         var _error = cc._renderContext.getError();
         if (_error) {
             cc.logID(2400, _error);

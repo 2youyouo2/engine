@@ -52,75 +52,22 @@ gulp.task('build-html5-preview',  function (done) {
 
 gulp.task('build-html5', ['build-html5-preview', 'build-html5-dev', 'build-html5-min']);
 
-var jsbSkipModules = [
-    '../../cocos2d/core/CCGame',
-    '../../cocos2d/core/textures/CCTexture2D',
-    '../../cocos2d/core/sprites/CCSpriteFrame',
-    '../../cocos2d/core/event/event',
-    '../../cocos2d/core/load-pipeline/audio-downloader',
-    '../../cocos2d/audio/CCAudio',
-    '../../extensions/spine/SGSkeleton',
-    '../../extensions/spine/SGSkeletonAnimation',
-    '../../extensions/spine/SGSkeletonCanvasRenderCmd',
-    '../../extensions/spine/SGSkeletonWebGLRenderCmd',
-    '../../extensions/spine/lib/spine',
-    '../../extensions/dragonbones/lib/dragonBones',
-    '../../extensions/dragonbones/CCFactory',
-    '../../extensions/dragonbones/CCArmatureDisplay',
-    '../../extensions/dragonbones/CCSlot',
-    '../../extensions/dragonbones/CCTextureData',
-    '../../external/box2d/box2d.js',
-    '../../cocos2d/core/physics/platform/CCPhysicsDebugDraw.js',
-    '../../cocos2d/core/physics/platform/CCPhysicsUtils.js',
-    '../../cocos2d/core/physics/platform/CCPhysicsAABBQueryCallback.js',
-    '../../cocos2d/core/physics/platform/CCPhysicsRayCastCallback.js',
-    '../../cocos2d/core/physics/platform/CCPhysicsContactListner.js',
-    '../../cocos2d/core/camera/CCSGCameraNode.js',
-    '../../cocos2d/core/label/CCSGLabel.js',
-    '../../cocos2d/core/label/CCSGLabelCanvasRenderCmd.js',
-    '../../cocos2d/core/label/CCSGLabelWebGLRenderCmd.js',
-    '../../cocos2d/clipping-nodes/CCClippingNode.js',
-    '../../cocos2d/clipping-nodes/CCClippingNodeCanvasRenderCmd.js',
-    '../../cocos2d/clipping-nodes/CCClippingNodeWebGLRenderCmd.js',
-    '../../cocos2d/core/videoplayer/CCSGVideoPlayer.js',
-    '../../cocos2d/core/webview/CCSGWebView.js',
-    '../../cocos2d/core/editbox/CCSGEditBox.js',
-    '../../cocos2d/particle/CCSGParticleSystem.js',
-    '../../cocos2d/particle/CCSGParticleSystemCanvasRenderCmd.js',
-    '../../cocos2d/particle/CCSGParticleSystemWebGLRenderCmd.js',
-    '../../cocos2d/particle/CCParticleBatchNode.js',
-    '../../cocos2d/particle/CCParticleBatchNodeCanvasRenderCmd.js',
-    '../../cocos2d/particle/CCParticleBatchNodeWebGLRenderCmd.js',
-    '../../cocos2d/tilemap/CCSGTMXTiledMap.js',
-    '../../cocos2d/tilemap/CCTMXXMLParser.js',
-    '../../cocos2d/tilemap/CCSGTMXObjectGroup.js',
-    '../../cocos2d/tilemap/CCSGTMXObject.js',
-    '../../cocos2d/tilemap/CCSGTMXLayer.js',
-    '../../cocos2d/tilemap/CCTMXLayerCanvasRenderCmd.js',
-    '../../cocos2d/tilemap/CCTMXLayerWebGLRenderCmd.js',
-    '../../cocos2d/motion-streak/CCSGMotionStreak.js',
-    '../../cocos2d/motion-streak/CCSGMotionStreakWebGLRenderCmd.js',
-    '../../cocos2d/render-texture/CCRenderTexture.js',
-    '../../cocos2d/render-texture/CCRenderTextureCanvasRenderCmd.js',
-    '../../cocos2d/render-texture/CCRenderTextureWebGLRenderCmd.js'
-];
-
 gulp.task('build-jsb-dev', function (done) {
     Engine.buildJsb([
         './jsb/index.js',
-    ], './bin/jsb_polyfill.dev.js', jsbSkipModules, done);
+    ], './bin/jsb_polyfill.dev.js', [], done);
 });
 
 gulp.task('build-jsb-min', function (done) {
     Engine.buildJsbMin([
         './jsb/index.js',
-    ], './bin/jsb_polyfill.js', jsbSkipModules, done);
+    ], './bin/jsb_polyfill.js', [], done);
 });
 
 gulp.task('build-jsb-preview',  function (done) {
     Engine.buildJsbPreview([
         './jsb/index.js',
-    ], './bin/jsb_polyfill-for-preview.js', jsbSkipModules, done);
+    ], './bin/jsb_polyfill-for-preview.js', [], done);
 });
 
 gulp.task('build-jsb', ['build-jsb-preview', 'build-jsb-dev', 'build-jsb-min']);
@@ -147,7 +94,12 @@ gulp.task('build-test-cases', ['clean-test-cases'], function (done) {
 gulp.task('build-test', ['clean-test', 'build-test-cases'], function (done) {
     Test.build('./index.js', './bin/cocos2d-js-for-test.js',
                '../editor/test-utils/engine-extends-entry.js', './bin/cocos2d-js-extends-for-test.js',
-               done);
+               false, done);
+});
+gulp.task('build-test-sm', ['clean-test', 'build-test-cases'], function (done) {
+    Test.build('./index.js', './bin/cocos2d-js-for-test.js',
+               '../editor/test-utils/engine-extends-entry.js', './bin/cocos2d-js-extends-for-test.js',
+               true, done);
 });
 
 gulp.task('unit-runner', ['build-test'], function (done) {
@@ -174,8 +126,7 @@ gulp.task('test-no-build', function (done) {
 
 // fast build, only for develop
 gulp.task('build-dev', ['build-html5-preview', 'build-jsb-preview'], function (done) {
-    // make dist version dirty
-    Del(['./bin/.cache'], done);
+    Del(['./bin/jsb_polyfill.js', './bin/jsb_polyfill.dev.js', './bin/.cache'], done);
 });
 
 // only build preview for html5 since it will built by editor
@@ -201,7 +152,7 @@ gulp.task('watch-preview', function () {
 gulp.task('watch-jsb-polyfill', function () {
     Watch.jsbPolyfill([
         './jsb/index.js',
-    ], './bin/jsb_polyfill.dev.js', jsbSkipModules);
+    ], './bin/jsb_polyfill.dev.js');
 });
 
 gulp.task('watch-dev-files', ['watch-preview', 'watch-jsb-polyfill']);

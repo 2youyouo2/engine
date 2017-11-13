@@ -563,7 +563,7 @@ else {
     else if (nav.appVersion.indexOf("Mac") !== -1) osName = sys.OS_OSX;
     else if (nav.appVersion.indexOf("X11") !== -1 && nav.appVersion.indexOf("Linux") === -1) osName = sys.OS_UNIX;
     else if (isAndroid) osName = sys.OS_ANDROID;
-    else if (nav.appVersion.indexOf("Linux") !== -1) osName = sys.OS_LINUX;
+    else if (nav.appVersion.indexOf("Linux") !== -1 || ua.indexOf("ubuntu") !== -1) osName = sys.OS_LINUX;
 
     /**
      * Indicate the running os name
@@ -589,7 +589,7 @@ else {
     /* Determine the browser type */
     (function(){
         var typeReg1 = /mqqbrowser|micromessenger|qq|sogou|qzone|liebao|maxthon|ucbrowser|360 aphone|360browser|baiduboxapp|baidubrowser|maxthon|mxbrowser|miuibrowser/i;
-        var typeReg2 = /qqbrowser|chrome|safari|firefox|trident|opera|opr|oupeng/i;
+        var typeReg2 = /qqbrowser|chrome|safari|firefox|trident|opera|opr\/|oupeng/i;
         var browserTypes = typeReg1.exec(ua);
         if(!browserTypes) browserTypes = typeReg2.exec(ua);
         var browserType = browserTypes ? browserTypes[0].toLowerCase() : sys.BROWSER_TYPE_UNKNOWN;
@@ -598,14 +598,14 @@ else {
         else if (browserType === "safari" && isAndroid)
             browserType = sys.BROWSER_TYPE_ANDROID;
         else if (browserType === "qq" && ua.match(/android.*applewebkit/i))
-            brwoserType = sys.BROWSER_TYPE_ANDROID;
+            browserType = sys.BROWSER_TYPE_ANDROID;
         else if (browserType === "trident")
             browserType = sys.BROWSER_TYPE_IE;
         else if (browserType === "360 aphone")
             browserType = sys.BROWSER_TYPE_360;
         else if (browserType === "mxbrowser")
             browserType = sys.BROWSER_TYPE_MAXTHON;
-        else if (browserType === "opr")
+        else if (browserType === "opr/")
             browserType = sys.BROWSER_TYPE_OPERA;
 
         sys.browserType = browserType;
@@ -619,7 +619,7 @@ else {
     /* Determine the browser version number */
     (function(){
         var versionReg1 = /(mqqbrowser|micromessenger|qq|sogou|qzone|liebao|maxthon|uc|360 aphone|360|baiduboxapp|baidu|maxthon|mxbrowser|miui)(mobile)?(browser)?\/?([\d.]+)/i;
-        var versionReg2 = /(qqbrowser|chrome|safari|firefox|trident|opera|opr|oupeng)(mobile)?(browser)?\/?([\d.]+)/i;
+        var versionReg2 = /(qqbrowser|chrome|safari|firefox|trident|opera|opr\/|oupeng)(mobile)?(browser)?\/?([\d.]+)/i;
         var tmp = ua.match(versionReg1);
         if(!tmp) tmp = ua.match(versionReg2);
         sys.browserVersion = tmp ? tmp[4] : "";
@@ -722,12 +722,6 @@ else {
         if (cc.create3DContext(document.createElement("CANVAS"))) {
             _supportWebGL = true;
         }
-        if (_supportWebGL && sys.os === sys.OS_IOS && sys.osMainVersion === 9) {
-            // Not activating WebGL in iOS 9 UIWebView because it may crash when entering background
-            if (!win.indexedDB) {
-                _supportWebGL = false;
-            }
-        }
         if (_supportWebGL && sys.os === sys.OS_ANDROID) {
             var browserVer = parseFloat(sys.browserVersion);
             switch (sys.browserType) {
@@ -750,14 +744,19 @@ else {
                 break;
             case sys.BROWSER_TYPE_CHROME:
                 // Chrome on android supports WebGL from v. 30
-                if(browserVer >= 30.0) {
+                if (browserVer >= 30.0) {
                     _supportWebGL = true;
                 } else {
                     _supportWebGL = false;
                 }
                 break;
-            case sys.BROWSER_TYPE_360:
             case sys.BROWSER_TYPE_UC:
+                if (browserVer > 11.0) {
+                    _supportWebGL = true;
+                } else {
+                    _supportWebGL = false;
+                }
+            case sys.BROWSER_TYPE_360:
                 _supportWebGL = false;
             }
         }

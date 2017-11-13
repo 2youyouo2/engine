@@ -1,5 +1,5 @@
 /****************************************************************************
- Copyright (c) 2013-2016 Chukong Technologies Inc.
+ Copyright (c) 2017 Chukong Technologies Inc.
 
  http://www.cocos.com
 
@@ -23,21 +23,52 @@
  THE SOFTWARE.
  ****************************************************************************/
 
-'use strict';
+var Pipeline = require('./pipeline');
 
-cc.Scale9Sprite.prototype.setRenderingType = function (type) {
-    if (this._renderingType === type) return;
-    this._renderingType = type;
+var ID = 'MD5Pipe';
+var ExtnameRegex = /(\.[^.\n\\/]*)$/;
 
-    if (!this.isScale9Enabled()){
-        this.setScale9Enabled(true);
-    }
-
-    if (type === cc.Scale9Sprite.RenderingType.SIMPLE) {
-        // Should modify based on trim size
-        this.setInsetLeft(0);
-        this.setInsetTop(0);
-        this.setInsetBottom(0);
-        this.setInsetRight(0);
-    }
+var MD5Pipe = function (md5AssetsMap, libraryBase, rawAssetsBase) {
+    this.id = ID;
+    this.async = false;
+    this.pipeline = null;
+    this.md5AssetsMap = md5AssetsMap;
+    this.libraryBase = libraryBase;
+    this.rawAssetsBase = rawAssetsBase;
 };
+MD5Pipe.ID = ID;
+
+MD5Pipe.prototype.handle = function(item) {
+    item.url = this.transformURL(item.url);
+    return item;
+};
+
+MD5Pipe.prototype.transformURL = function (url) {
+    var index = url.indexOf('?');
+    var key = url;
+    if (index !== -1) {
+        key = url.substr(0, index);
+    }
+    if (key.startsWith(this.libraryBase)) {
+        key = key.slice(this.libraryBase.length);
+    } else if(key.startsWith(this.rawAssetsBase)) {
+        key = key.slice(this.rawAssetsBase.length);
+    } else {
+        return url;
+    }
+    let hashValue = this.md5AssetsMap[key];
+    if (hashValue) {
+        var matched = false;
+        url  = url.replace(ExtnameRegex, function(match, p1) {
+            matched = true;
+            return '.' + hashValue + p1;
+        });
+        if (!matched) {
+            url = url + '.' + hashValue;
+        }
+    }
+    return url;
+};
+
+
+Pipeline.MD5Pipe = module.exports = MD5Pipe;

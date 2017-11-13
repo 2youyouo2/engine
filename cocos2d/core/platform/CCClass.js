@@ -379,18 +379,9 @@ function define (className, baseClass, mixins, options) {
 function normalizeClassName_DEV (className) {
     var DefaultName = 'CCClass';
     if (className) {
-        className = Array.prototype.map.call(className, function (x) {
-            return /^[a-zA-Z0-9_$]/.test(x) ? x : '_';
-        }).join('');
+        className = className.replace(/^[^$A-Za-z_]/, '_').replace(/[^0-9A-Za-z_$]/g, '_');
         try {
             // validate name
-            Function('function ' + className + '(){}')();
-            return className;
-        }
-        catch (e) {
-            className = DefaultName + '_' + className;
-        }
-        try {
             Function('function ' + className + '(){}')();
             return className;
         }
@@ -405,31 +396,35 @@ function getNewValueTypeCode (value) {
     var clsName = JS.getClassName(value);
     var type = value.constructor;
     var res = 'new ' + clsName + '(';
-    var i;
-    if (type === cc.Mat3 || type === cc.Mat4) {
-        var data = value.data;
-        for (i = 0; i < data.length; i++) {
-            res += data[i];
-            if (i < data.length - 1) {
-                res += ',';
-            }
+    for (var i = 0; i < type.__props__.length; i++) {
+        var prop = type.__props__[i];
+        var propVal = value[prop];
+        if (typeof propVal === 'object') {
+            cc.errorID(3641, clsName);
+            return 'new ' + clsName + '()';
         }
-    }
-    else {
-        for (i = 0; i < type.__props__.length; i++) {
-            var prop = type.__props__[i];
-            var propVal = value[prop];
-            if (typeof propVal === 'object') {
-                cc.errorID(3641, clsName);
-                return 'new ' + clsName + '()';
-            }
-            res += propVal;
-            if (i < type.__props__.length - 1) {
-                res += ',';
-            }
+        res += propVal;
+        if (i < type.__props__.length - 1) {
+            res += ',';
         }
     }
     return res + ')';
+}
+
+function getNewValueType (value) {
+    var clsName = JS.getClassName(value);
+    var type = value.constructor;
+    var res = new type();
+    for (var i = 0; i < type.__props__.length; i++) {
+        var prop = type.__props__[i];
+        var propVal = value[prop];
+        if (typeof propVal === 'object') {
+            cc.errorID(3641, clsName);
+            return res;
+        }
+        res[prop] = propVal;
+    }
+    return res;
 }
 
 // TODO - move escapeForJS, IDENTIFIER_RE, getNewValueTypeCode to misc.js or a new source file
@@ -443,17 +438,7 @@ function escapeForJS (s) {
         replace(/\u2029/g, '\\u2029');
 }
 
-// simple test variable name
-var IDENTIFIER_RE = /^[$A-Za-z_][0-9A-Za-z_$]*$/;
-function compileProps (actualClass) {
-    // init deferred properties
-    var attrs = Attr.getClassAttrs(actualClass);
-    var propList = actualClass.__props__;
-    if (propList === null) {
-        deferredInitializer.init();
-        propList = actualClass.__props__;
-    }
-
+function getInitPropsJit (attrs, propList) {
     // functions for generated code
     var F = [];
     var func = '';
@@ -507,7 +492,6 @@ function compileProps (actualClass) {
     //     console.log(func);
     // }
 
-    // Overwite __initProps__ to avoid compile again.
     var initProps;
     if (F.length === 0) {
         initProps = Function(func);
@@ -515,19 +499,85 @@ function compileProps (actualClass) {
     else {
         initProps = Function('F', 'return (function(){\n' + func + '})')(F);
     }
+
+    return initProps;
+}
+
+function getInitProps (attrs, propList) {
+    // functions for generated code
+
+    function func () {
+        var F = [];
+    
+        for (var i = 0; i < propList.length; i++) {
+            var prop = propList[i];
+            var attrKey = prop + DELIMETER + 'default';
+            if (attrKey in attrs) {  // getter does not have default
+                var expression;
+                var def = attrs[attrKey];
+                if (typeof def === 'object' && def) {
+                    if (def instanceof cc.ValueType) {
+                        expression = getNewValueType(def);
+                    }
+                    else if (Array.isArray(def)) {
+                        expression = [];
+                    }
+                    else {
+                        expression = {};
+                    }
+                }
+                else if (typeof def === 'function') {
+                    var index = F.length;
+                    F.push(def);
+                    expression = F[index]();
+                    if (CC_EDITOR) {
+                        try {
+                            this[prop] = expression;
+                        }
+                        catch(err) {
+                            cc._throw(e);
+                        }
+                        continue;
+                    }
+                }
+                else {
+                    // number, boolean, null, undefined, string
+                    expression = def;
+                }
+
+                this[prop] = expression;
+            }
+        }
+    }
+    
+    return func;
+}
+
+// simple test variable name
+var IDENTIFIER_RE = /^[$A-Za-z_][0-9A-Za-z_$]*$/;
+function compileProps (actualClass) {
+    // init deferred properties
+    var attrs = Attr.getClassAttrs(actualClass);
+    var propList = actualClass.__props__;
+    if (propList === null) {
+        deferredInitializer.init();
+        propList = actualClass.__props__;
+    }
+
+    // Overwite __initProps__ to avoid compile again.
+    var initProps = cc.supportJit ? getInitPropsJit(attrs, propList) : getInitProps(attrs, propList);
     actualClass.prototype.__initProps__ = initProps;
+
     // call instantiateProps immediately, no need to pass actualClass into it anymore
     // (use call to manually bind `this` because `this` may not instanceof actualClass)
     initProps.call(this);
 }
 
-function _createCtor (ctors, baseClass, className, options) {
-    // bound super calls
+var _createCtor = cc.supportJit ? function (ctors, baseClass, className, options) {
     var superCallBounded = baseClass && boundSuperCalls(baseClass, options, className);
 
-    var args = CC_JSB ? '...args' : '';
     var ctorName = CC_DEV ? normalizeClassName_DEV(className) : 'CCClass';
-    var body = 'return function ' + ctorName + '(' + args + '){\n';
+    var body = 'return function ' + ctorName + '(){\n';
 
     if (superCallBounded) {
         body += 'this._super=null;\n';
@@ -543,7 +593,7 @@ function _createCtor (ctors, baseClass, className, options) {
         if (useTryCatch) {
             body += 'try{\n';
         }
-        var SNIPPET = CC_JSB ? '].apply(this,args);\n' : '].apply(this,arguments);\n';
+        var SNIPPET = '].apply(this,arguments);\n';
         if (ctorLen === 1) {
             body += ctorName + '.__ctors__[0' + SNIPPET;
         }
@@ -562,7 +612,49 @@ function _createCtor (ctors, baseClass, className, options) {
     body += '}';
 
     return Function(body)();
-}
+} : function (ctors, baseClass, className, options) {
+    var superCallBounded = baseClass && boundSuperCalls(baseClass, options, className);
+
+    return function CCClass () {
+        if (superCallBounded) {
+            this._super=null;
+        }
+
+        this.__initProps__(CCClass);
+
+        // call user constructors
+        var ctorLen = ctors.length;
+        var cs = CCClass.__ctors__;
+        if (ctorLen > 0) {
+            var useTryCatch = ! (className && className.startsWith('cc.'));
+            if (useTryCatch) {
+                try {
+                    if (ctorLen === 1) {
+                        cs[0].apply(this, arguments);
+                    }
+                    else {
+                        for (var i = 0; i < ctorLen; i++) {
+                            cs[i].apply(this, arguments);;
+                        }
+                    }
+                }
+                catch(e) {
+                    cc._throw(e);
+                }
+            }
+            else {
+                if (ctorLen === 1) {
+                    cs[0].apply(this, arguments);
+                }
+                else {
+                    for (var i = 0; i < ctorLen; i++) {
+                        cs[i].apply(this, arguments);;
+                    }
+                }
+            }
+        }
+    };
+};
 
 function _validateCtor_DEV (ctor, baseClass, className, options) {
     if (CC_EDITOR && baseClass) {
@@ -575,12 +667,7 @@ function _validateCtor_DEV (ctor, baseClass, className, options) {
             else {
                 cc.warnID(3600, className);
                 // suppresss super call
-                ctor = CC_JSB ? function (...args) {
-                    this._super = function () {};
-                    var ret = originCtor.apply(this, args);
-                    this._super = null;
-                    return ret;
-                } : function () {
+                ctor = function () {
                     this._super = function () {};
                     var ret = originCtor.apply(this, arguments);
                     this._super = null;
@@ -672,13 +759,7 @@ function boundSuperCalls (baseClass, options, className) {
                     hasSuperCall = true;
                     // boundSuperCall
                     options[funcName] = (function (superFunc, func) {
-                        return CC_JSB ? function (...args) {
-                            var tmp = this._super;
-                            this._super = superFunc;
-                            var ret = func.apply(this, args);
-                            this._super = tmp;
-                            return ret;
-                        } : function () {
+                        return function () {
                             var tmp = this._super;
 
                             // Add a new ._super() method that is the same method but on the super-Class
@@ -884,8 +965,7 @@ function CCClass (options) {
             continue;
         }
         var func = options[funcName];
-        // TODO: call validateMethod on es6
-        if (!preprocess.validateMethod(func, funcName, name, cls, base)) {
+        if (!preprocess.validateMethodWithProps(func, funcName, name, cls, base)) {
             continue;
         }
         // use value to redefine some super method defined as getter
@@ -1132,6 +1212,8 @@ function parseAttributes (cls, attrs, className, propName, usedInGetter) {
             (attrsProto || getAttrsProto())[attrsProtoKey + 'serializable'] = false;
         }
     }
+    parseSimpleAttr('formerlySerializedAs', 'string');
+
     if (CC_EDITOR) {
         if ('animatable' in attrs && !attrs.animatable) {
             (attrsProto || getAttrsProto())[attrsProtoKey + 'animatable'] = false;

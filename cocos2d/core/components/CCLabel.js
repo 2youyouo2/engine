@@ -22,9 +22,9 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE.
  ****************************************************************************/
-require('../label/CCSGLabel.js');
-require('../label/CCSGLabelCanvasRenderCmd.js');
-require('../label/CCSGLabelWebGLRenderCmd.js');
+require('../label/CCSGLabel');
+require('../label/CCSGLabelCanvasRenderCmd');
+require('../label/CCSGLabelWebGLRenderCmd');
 /**
  * !#en Enum for text alignment.
  * !#zh 文本横向对齐类型
@@ -124,17 +124,7 @@ var Overflow = _ccsg.Label.Overflow;
 // leading edge, instead of the trailing.
 function debounce (func, wait, immediate) {
     var timeout;
-    return CC_JSB ? function (...args) {
-        var context = this;
-        var later = function() {
-            timeout = null;
-            if (!immediate) func.apply(context, args);
-        };
-        var callNow = immediate && !timeout;
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-        if (callNow) func.apply(context, args);
-    } : function () {
+    return function () {
         var context = this;
         var later = function() {
             timeout = null;
@@ -499,16 +489,12 @@ var Label = cc.Class({
     __preload: function () {
         this._super();
 
-        var sgSizeInitialized = this._sgNode._isUseSystemFont;
-        if (sgSizeInitialized) {
-            this._updateNodeSize();
-        }
-
         // node should be resize whenever font changed, needed only on web
         if (!CC_JSB) {
             this._sgNode.on('load', this._updateNodeSize, this);
         }
 
+        this._updateNodeSize();
     },
 
     _createSgNode: function () {
@@ -529,17 +515,17 @@ var Label = cc.Class({
                         sgNode = this._sgNode = new _ccsg.Label(this.string, JSON.stringify(font._fntConfig), font.spriteFrame);
                     } else {
                         cc.warnID(4012, font.name);
-                        sgNode = this._sgNode = new _ccsg.Label(this.string);
+                        sgNode = this._sgNode = new _ccsg.Label(this.string, null, null, this._fontSize);
                     }
                 } else {
                     sgNode = this._sgNode = _ccsg.Label.pool.get(this.string, font);
                 }
             } else {
                 cc.warnID(4011, font.name);
-                sgNode = this._sgNode = new _ccsg.Label(this.string);
+                sgNode = this._sgNode = _ccsg.Label.pool.get(this.string);
             }
         } else {
-            sgNode = this._sgNode = _ccsg.Label.pool.get(this.string, font);
+            sgNode = this._sgNode = _ccsg.Label.pool.get(this.string, font, null, this._fontSize);
         }
 
         if (CC_JSB) {

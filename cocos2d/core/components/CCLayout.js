@@ -147,8 +147,17 @@ var HorizontalDirection = cc.Enum({
 });
 
 /**
- * !#en The Layout is a container component, use it to arrange child elements easily.
- * !#zh Layout 组件相当于一个容器，能自动对它的所有子节点进行统一排版。
+ * !#en
+ * The Layout is a container component, use it to arrange child elements easily.<br>
+ * Note：<br>
+ * 1.Scaling and rotation of child nodes are not considered.<br>
+ * 2.After setting the Layout, the results need to be updated until the next frame,
+ * unless you manually call {{#crossLink "Layout/updateLayout:method"}}{{/crossLink}}。
+ * !#zh
+ * Layout 组件相当于一个容器，能自动对它的所有子节点进行统一排版。<br>
+ * 注意：<br>
+ * 1.不会考虑子节点的缩放和旋转。<br>
+ * 2.对 Layout 设置后结果需要到下一帧才会更新，除非你设置完以后手动调用 {{#crossLink "Layout/updateLayout:method"}}{{/crossLink}}。
  * @class Layout
  * @extends Component
  */
@@ -222,7 +231,7 @@ var Layout = cc.Class({
                 }
 
                 this._resize = value;
-                if (CC_EDITOR && this.type !== Type.NONE && value === ResizeMode.CONTAINER && !cc.engine.isPlaying) {
+                if (CC_EDITOR && value === ResizeMode.CONTAINER && !cc.engine.isPlaying) {
                     var reLayouted = _Scene.DetectConflict.checkConflict_Layout(this);
                     if (reLayouted) {
                         return;
@@ -402,7 +411,9 @@ var Layout = cc.Class({
         this._N$padding = 0;
     },
 
-    __preload: function() {
+    onEnable: function() {
+        this._addEventListeners();
+
         if(cc.sizeEqualToSize(this.node.getContentSize(), cc.size(0, 0))) {
             this.node.setContentSize(this._layoutSize);
         }
@@ -411,27 +422,54 @@ var Layout = cc.Class({
             this._migratePaddingData();
         }
 
-        this.node.on('size-changed', this._resized, this);
+        this._doLayoutDirty();
+    },
 
+    onDisable: function () {
+        this._removeEventListeners();
+    },
+
+    _doLayoutDirty : function () {
+        this._layoutDirty = true;
+    },
+
+    _addEventListeners: function () {
+        cc.director.on(cc.Director.EVENT_BEFORE_VISIT, this.updateLayout, this);
+        this.node.on('size-changed', this._resized, this);
         this.node.on('anchor-changed', this._doLayoutDirty, this);
         this.node.on('child-added', this._childAdded, this);
         this.node.on('child-removed', this._childRemoved, this);
         this.node.on('child-reorder', this._doLayoutDirty, this);
-
-        this._updateChildrenEventListener();
+        this._addChildrenEventListeners();
     },
 
-    _doLayoutDirty : function() {
-        this._layoutDirty = true;
+    _removeEventListeners: function () {
+        cc.director.off(cc.Director.EVENT_BEFORE_VISIT, this.updateLayout, this);
+        this.node.off('size-changed', this._resized, this);
+        this.node.off('anchor-changed', this._doLayoutDirty, this);
+        this.node.off('child-added', this._childAdded, this);
+        this.node.off('child-removed', this._childRemoved, this);
+        this.node.off('child-reorder', this._doLayoutDirty, this);
+        this._removeChildrenEventListeners();
     },
 
-    _updateChildrenEventListener: function() {
+    _addChildrenEventListeners: function() {
         var children = this.node.children;
-        children.forEach(function(child) {
+        children.forEach(function (child) {
             child.on('size-changed', this._doLayoutDirty, this);
             child.on('position-changed', this._doLayoutDirty, this);
             child.on('anchor-changed', this._doLayoutDirty, this);
             child.on('active-in-hierarchy-changed', this._doLayoutDirty, this);
+        }.bind(this));
+    },
+
+    _removeChildrenEventListeners: function () {
+        var children = this.node.children;
+        children.forEach(function (child) {
+            child.off('size-changed', this._doLayoutDirty, this);
+            child.off('position-changed', this._doLayoutDirty, this);
+            child.off('anchor-changed', this._doLayoutDirty, this);
+            child.off('active-in-hierarchy-changed', this._doLayoutDirty, this);
         }.bind(this));
     },
 
@@ -894,15 +932,20 @@ var Layout = cc.Class({
         }
     },
 
-    onEnable: function () {
-        cc.director.on(cc.Director.EVENT_BEFORE_VISIT, this._updateLayout, this);
-    },
-
-    onDisable: function () {
-        cc.director.off(cc.Director.EVENT_BEFORE_VISIT, this._updateLayout, this);
-    },
-
-    _updateLayout: function() {
+    /**
+     * !#en Perform the layout update
+     * !#zh 立即执行更新布局
+     *
+     * @method updateLayout
+     *
+     * @example
+     * layout.type = cc.Layout.HORIZONTAL;
+     * layout.node.addChild(childNode);
+     * cc.log(childNode.x); // not yet changed
+     * layout.updateLayout();
+     * cc.log(childNode.x); // changed
+     */
+    updateLayout: function() {
         if (this._layoutDirty && this.node.children.length > 0) {
             this._doLayout();
             this._layoutDirty = false;

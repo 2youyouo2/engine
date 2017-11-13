@@ -84,24 +84,7 @@ var js = {
      * @return {Object} the result obj
      * @deprecated
      */
-    addon: CC_JSB ? function (obj, ...args) {
-        obj = obj || {};
-        for (var i = 0, length = args.length; i < length; i++) {
-            var source = args[i];
-            if (source) {
-                if (typeof source !== 'object') {
-                    cc.errorID(5402, source);
-                    continue;
-                }
-                for ( var name in source) {
-                    if ( !(name in obj) ) {
-                        _copyprop( name, source, obj);
-                    }
-                }
-            }
-        }
-        return obj;
-    } : function (obj) {
+    addon: function (obj) {
         'use strict';
         obj = obj || {};
         for (var i = 1, length = arguments.length; i < length; i++) {
@@ -128,22 +111,7 @@ var js = {
      * @param {Object} ...sourceObj
      * @return {Object} the result obj
      */
-    mixin: CC_JSB ? function (obj, ...args) {
-        obj = obj || {};
-        for (var i = 0, length = args.length; i < length; i++) {
-            var source = args[i];
-            if (source) {
-                if (typeof source !== 'object') {
-                    cc.errorID(5403, source);
-                    continue;
-                }
-                for ( var name in source) {
-                    _copyprop( name, source, obj);
-                }
-            }
-        }
-        return obj;
-    } : function (obj) {
+    mixin: function (obj) {
         'use strict';
         obj = obj || {};
         for (var i = 1, length = arguments.length; i < length; i++) {
@@ -451,19 +419,7 @@ cc.js.unregisterClass to remove the id of unused class';
      * @method unregisterClass
      * @param {Function} ...constructor - the class you will want to unregister, any number of classes can be added
      */
-    js.unregisterClass = CC_JSB ? function (...args) {
-        for (var i = 0; i < args.length; i++) {
-            var p = args[i].prototype;
-            var classId = p.__cid__;
-            if (classId) {
-                delete _idToClass[classId];
-            }
-            var classname = p.__classname__;
-            if (classname) {
-                delete _nameToClass[classname];
-            }
-        }
-    } : function () {
+    js.unregisterClass = function () {
         for (var i = 0; i < arguments.length; i++) {
             var p = arguments[i].prototype;
             var classId = p.__cid__;
@@ -574,7 +530,7 @@ cc.js.unregisterClass to remove the id of unused class';
  * @param {Boolean} [writable=false]
  */
 js.obsolete = function (obj, obsoleted, newPropName, writable) {
-    var oldName = obsoleted.split('.').slice(-1)[0];
+    var oldName = /([^.]+)$/.exec(obsoleted)[0];
     function get () {
         if (CC_DEV) {
             cc.warnID(5400, obsoleted, newPropName);
@@ -612,75 +568,46 @@ js.obsoletes = function (obj, objName, props, writable) {
     }
 };
 
+var REGEXP_NUM_OR_STR = /(%d)|(%s)/;
+var REGEXP_STR = /%s/;
+
 /**
  * A string tool to construct a string with format string.
- * for example:
- *      cc.js.formatStr("a: %s, b: %s", a, b);
- *      cc.js.formatStr(a, b, c);
  * @method formatStr
+ * @param {String|any} msg - A JavaScript string containing zero or more substitution strings.
+ * @param {any} ...subst - JavaScript objects with which to replace substitution strings within msg. This gives you additional control over the format of the output.
  * @returns {String}
+ * @example
+ * cc.js.formatStr("a: %s, b: %s", a, b);
+ * cc.js.formatStr(a, b, c);
  */
-js.formatStr = CC_JSB ? function (...args) {
-    var l = args.length;
-    if (l < 1) return '';
-    var REGEXP_NUM_OR_STR = /(%d)|(%s)/;
+js.formatStr = function () {
+    var argLen = arguments.length;
+    if (argLen === 0) {
+        return '';
+    }
+    var msg = arguments[0];
+    if (argLen === 1) {
+        return '' + msg;
+    }
 
-    var i = 1;
-    var str = args[0];
-    var hasSubstitution = typeof str === 'string' && REGEXP_NUM_OR_STR.test(str);
+    var hasSubstitution = typeof msg === 'string' && REGEXP_NUM_OR_STR.test(msg);
     if (hasSubstitution) {
-        var REGEXP_STR = /%s/;
-        for (; i < l; ++i) {
-            var arg = args[i];
+        for (let i = 1; i < argLen; ++i) {
+            var arg = arguments[i];
             var regExpToTest = typeof arg === 'number' ? REGEXP_NUM_OR_STR : REGEXP_STR;
-            if (regExpToTest.test(str))
-                str = str.replace(regExpToTest, arg);
+            if (regExpToTest.test(msg))
+                msg = msg.replace(regExpToTest, arg);
             else
-                str += ' ' + arg;
+                msg += ' ' + arg;
         }
     }
     else {
-        if (l > 1) {
-            for (; i < l; ++i) {
-                str += ' ' + args[i];
-            }
-        }
-        else {
-            str = '' + str;
+        for (let i = 1; i < argLen; ++i) {
+            msg += ' ' + arguments[i];
         }
     }
-    return str;
-} : function () {
-    var args = arguments;
-    var l = args.length;
-    if (l < 1) return '';
-    var REGEXP_NUM_OR_STR = /(%d)|(%s)/;
-
-    var i = 1;
-    var str = args[0];
-    var hasSubstitution = typeof str === 'string' && REGEXP_NUM_OR_STR.test(str);
-    if (hasSubstitution) {
-        var REGEXP_STR = /%s/;
-        for (; i < l; ++i) {
-            var arg = args[i];
-            var regExpToTest = typeof arg === 'number' ? REGEXP_NUM_OR_STR : REGEXP_STR;
-            if (regExpToTest.test(str))
-                str = str.replace(regExpToTest, arg);
-            else
-                str += ' ' + arg;
-        }
-    }
-    else {
-        if (l > 1) {
-            for (; i < l; ++i) {
-                str += ' ' + args[i];
-            }
-        }
-        else {
-            str = '' + str;
-        }
-    }
-    return str;
+    return msg;
 };
 
 // see https://github.com/petkaantonov/bluebird/issues/1389
@@ -691,6 +618,29 @@ js.shiftArguments = function () {
         args[i] = arguments[i + 1];
     }
     return args;
+};
+
+/**
+ * #en
+ * A simple wrapper of `Object.create(null)` which ensures the return object have no prototype (and thus no inherited members). So we can skip `hasOwnProperty` calls on property lookups. It is a worthwhile optimization than the `{}` literal when `hasOwnProperty` calls are necessary.
+ * #zh
+ * 该方法是对 `Object.create(null)` 的简单封装。`Object.create(null)` 用于创建无 prototype （也就无继承）的空对象。这样我们在该对象上查找属性时，就不用进行 `hasOwnProperty` 判断。在需要频繁判断 `hasOwnProperty` 时，使用这个方法性能会比 `{}` 更高。
+ *
+ * @method createMap
+ * @param {Boolean} [forceDictMode=false] - Apply the delete operator to newly created map object. This causes V8 to put the object in "dictionary mode" and disables creation of hidden classes which are very expensive for objects that are constantly changing shape.
+ * @return {Object}
+ */
+js.createMap = function (forceDictMode) {
+    var map = Object.create(null);
+    if (forceDictMode) {
+        const INVALID_IDENTIFIER_1 = '.';
+        const INVALID_IDENTIFIER_2 = '/';
+        map[INVALID_IDENTIFIER_1] = true;
+        map[INVALID_IDENTIFIER_2] = true;
+        delete map[INVALID_IDENTIFIER_1];
+        delete map[INVALID_IDENTIFIER_2];
+    }
+    return map;
 };
 
 /**
@@ -802,20 +752,14 @@ function appendObjectsAt (array, addObjs, index) {
 }
 
 /**
- * Exact same function as Array.prototype.indexOf.
- * HACK: ugliy hack for Baidu mobile browser compatibility,
- * stupid Baidu guys modify Array.prototype.indexOf for all pages loaded,
- * their version changes strict comparison to non-strict comparison,
- * it also ignores the second parameter of the original API,
- * and this will cause event handler enter infinite loop.
- * Baidu developers, if you ever see this documentation,
- * here is the standard: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/indexOf
- * Seriously !
+ * Exact same function as Array.prototype.indexOf.<br>
+ * HACK: ugliy hack for Baidu mobile browser compatibility, stupid Baidu guys modify Array.prototype.indexOf for all pages loaded, their version changes strict comparison to non-strict comparison, it also ignores the second parameter of the original API, and this will cause event handler enter infinite loop.<br>
+ * Baidu developers, if you ever see this documentation, here is the standard: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/indexOf, Seriously!
  *
  * @method indexOf
- * @param {any} searchElement Element to locate in the array.
- * @param {Number} [fromIndex=0] The index to start the search at
- * @return {Number} returns the first index at which a given element can be found in the array, or -1 if it is not present.
+ * @param {any} searchElement - Element to locate in the array.
+ * @param {Number} [fromIndex=0] - The index to start the search at
+ * @return {Number} - the first index at which a given element can be found in the array, or -1 if it is not present.
  */
 var indexOf = Array.prototype.indexOf;
 
@@ -827,7 +771,7 @@ var indexOf = Array.prototype.indexOf;
  * @return {Boolean}
  */
 function contains (array, value) {
-    return indexOf.call(array, value) >= 0;
+    return array.indexOf(value) >= 0;
 }
 
 /**
@@ -844,16 +788,16 @@ function copy (array) {
 }
 
 js.array = {
-    remove: remove,
-    fastRemove: fastRemove,
-    removeAt: removeAt,
-    fastRemoveAt: fastRemoveAt,
-    contains: contains,
-    verifyType: verifyType,
-    removeArray: removeArray,
-    appendObjectsAt: appendObjectsAt,
-    copy: copy,
-    indexOf: indexOf,
+    remove,
+    fastRemove,
+    removeAt,
+    fastRemoveAt,
+    contains,
+    verifyType,
+    removeArray,
+    appendObjectsAt,
+    copy,
+    indexOf,
     MutableForwardIterator: require('../utils/mutable-forward-iterator')
 };
 

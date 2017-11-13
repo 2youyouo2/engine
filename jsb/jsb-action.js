@@ -25,143 +25,11 @@
 
 var ENABLE_GC_FOR_NATIVE_OBJECTS = cc.macro.ENABLE_GC_FOR_NATIVE_OBJECTS;
 
-// Independent Action from retain/release
-var actionArr = [
-    'ActionEase',
-    'EaseExponentialIn',
-    'EaseExponentialOut',
-    'EaseExponentialInOut',
-    'EaseSineIn',
-    'EaseSineOut',
-    'EaseSineInOut',
-    'EaseBounce',
-    'EaseBounceIn',
-    'EaseBounceOut',
-    'EaseBounceInOut',
-    'EaseBackIn',
-    'EaseBackOut',
-    'EaseBackInOut',
-    'EaseRateAction',
-    'EaseIn',
-    'EaseElastic',
-    'EaseElasticIn',
-    'EaseElasticOut',
-    'EaseElasticInOut',
-    'RemoveSelf',
-    'FlipX',
-    'FlipY',
-    'Place',
-    'CallFunc',
-    'DelayTime',
-    'Speed',
-    'Repeat',
-    'RepeatForever',
-    'Follow',
-    'TargetedAction',
-    'ActionInterval',
-    'RotateTo',
-    'RotateBy',
-    'MoveBy',
-    'MoveTo',
-    'SkewTo',
-    'SkewBy',
-    'JumpTo',
-    'JumpBy',
-    'ScaleTo',
-    'ScaleBy',
-    'Blink',
-    'FadeTo',
-    'FadeIn',
-    'FadeOut',
-    'TintTo',
-    'TintBy',
-];
-
 cc.Action.prototype._getSgTarget = cc.Action.prototype.getTarget;
 cc.Action.prototype.getTarget = function () {
     var sgNode = this._getSgTarget();
     return sgNode._owner || sgNode;
 };
-
-function setCtorReplacer (proto) {
-    var ctor = proto._ctor;
-    proto._ctor = function (...args) {
-        ctor.apply(this, args);
-        this.retain();
-        this._retained = true;
-    };
-}
-function setAliasReplacer (name, type) {
-    var aliasName = name[0].toLowerCase() + name.substr(1);
-    cc[aliasName] = function (...args) {
-        var action = type.create.apply(this, args);
-        action.retain();
-        action._retained = true;
-        return action;
-    };
-}
-
-if (!ENABLE_GC_FOR_NATIVE_OBJECTS) {
-    for (var i = 0; i < actionArr.length; ++i) {
-        var name = actionArr[i];
-        var type = cc[name];
-        if (!type) 
-            continue;
-        var proto = type.prototype;
-        setCtorReplacer(proto);
-        if (name.indexOf('Ease') === -1) {
-            setAliasReplacer(name, type);
-        }
-    }
-}
-
-cc.Sequence.prototype._ctor = function (...args) {
-    var paramArray = (args[0] instanceof Array) ? args[0] : args;
-    if (paramArray.length === 1) {
-        cc.errorID(1019);
-        return;
-    }
-    var last = paramArray.length - 1;
-    if ((last >= 0) && (paramArray[last] == null))
-        cc.logID(1015);
-
-    if (last >= 0) {
-        this.init(paramArray);
-    }
-
-    if (!ENABLE_GC_FOR_NATIVE_OBJECTS) {
-        this.retain();
-        this._retained = true;
-    }
-};
-
-cc.sequence = function (...args) {
-    var paramArray = (args[0] instanceof Array) ? args[0] : args;
-    return new cc.Sequence(paramArray);
-}
-
-cc.Spawn.prototype._ctor = function (...args) {
-    var paramArray = (args[0] instanceof Array) ? args[0] : args;
-    if (paramArray.length === 1)
-        cc.errorID(1020);
-    var last = paramArray.length - 1;
-    if ((last >= 0) && (paramArray[last] == null))
-        cc.logID(1015);
-
-    if (last >= 0) {
-        this.init(paramArray);
-    }
-
-    if (!ENABLE_GC_FOR_NATIVE_OBJECTS) {
-        this.retain();
-        this._retained = true;
-    }
-};
-
-cc.spawn = function (...args) {
-    var paramArray = (args[0] instanceof Array) ? args[0] : args;
-    return new cc.Spawn(paramArray);
-}
 
 cc.targetedAction = function (target, action) {
     return new cc.TargetedAction(target, action);
@@ -174,15 +42,121 @@ cc.TargetedAction.prototype._ctor = function(target, action) {
 };
 
 cc.follow = function (followedNode, rect) {
-    return new cc.Follow(followedNode._sgNode, rect);
+    return new cc.Follow(followedNode, rect);
 };
 
-cc.Follow.prototype.update = function(dt) {
-    var target = this._getSgTarget();
-    if (target._owner) {
-        target._owner.setPosition(target.getPosition());
+cc.Follow = cc.BaseJSAction.extend({
+    _followedNode:null,
+    _boundarySet:false,
+    _boundaryFullyCovered:false,
+    _halfScreenSize:null,
+    _fullScreenSize:null,
+    _worldRect:null,
+
+    leftBoundary:0.0,
+    rightBoundary:0.0,
+    topBoundary:0.0,
+    bottomBoundary:0.0,
+
+    ctor:function (followedNode, rect) {
+        cc.BaseJSAction.prototype.ctor.call(this);
+        this._followedNode = null;
+        this._boundarySet = false;
+
+        this._boundaryFullyCovered = false;
+        this._halfScreenSize = null;
+        this._fullScreenSize = null;
+
+        this.leftBoundary = 0.0;
+        this.rightBoundary = 0.0;
+        this.topBoundary = 0.0;
+        this.bottomBoundary = 0.0;
+        this._worldRect = cc.rect(0, 0, 0, 0);
+
+        if(followedNode)
+            rect ? this.initWithTarget(followedNode, rect)
+                : this.initWithTarget(followedNode);
+    },
+
+    clone:function () {
+        var action = new cc.Follow();
+        var locRect = this._worldRect;
+        var rect = new cc.Rect(locRect.x, locRect.y, locRect.width, locRect.height);
+        action.initWithTarget(this._followedNode, rect);
+        return action;
+    },
+
+    isBoundarySet:function () {
+        return this._boundarySet;
+    },
+
+    setBoudarySet:function (value) {
+        this._boundarySet = value;
+    },
+
+    initWithTarget:function (followedNode, rect) {
+        if(!followedNode)
+            throw new Error("cc.Follow.initWithAction(): followedNode must be non nil");
+
+        var _this = this;
+        rect = rect || cc.rect(0, 0, 0, 0);
+        _this._followedNode = followedNode;
+        _this._worldRect = rect;
+
+        _this._boundarySet = !cc._rectEqualToZero(rect);
+
+        _this._boundaryFullyCovered = false;
+
+        var winSize = cc.director.getWinSize();
+        _this._fullScreenSize = cc.p(winSize.width, winSize.height);
+        _this._halfScreenSize = cc.pMult(_this._fullScreenSize, 0.5);
+
+        if (_this._boundarySet) {
+            _this.leftBoundary = -((rect.x + rect.width) - _this._fullScreenSize.x);
+            _this.rightBoundary = -rect.x;
+            _this.topBoundary = -rect.y;
+            _this.bottomBoundary = -((rect.y + rect.height) - _this._fullScreenSize.y);
+
+            if (_this.rightBoundary < _this.leftBoundary) {
+                _this.rightBoundary = _this.leftBoundary = (_this.leftBoundary + _this.rightBoundary) / 2;
+            }
+            if (_this.topBoundary < _this.bottomBoundary) {
+                _this.topBoundary = _this.bottomBoundary = (_this.topBoundary + _this.bottomBoundary) / 2;
+            }
+
+            if ((_this.topBoundary === _this.bottomBoundary) && (_this.leftBoundary === _this.rightBoundary))
+                _this._boundaryFullyCovered = true;
+        }
+        return true;
+    },
+
+    step:function (dt) {
+        var target = this.getTarget();
+        var targetWorldPos = target.convertToWorldSpaceAR(cc.Vec2.ZERO);
+        var followedWorldPos = this._followedNode.convertToWorldSpaceAR(cc.Vec2.ZERO);
+        var delta = cc.pSub(targetWorldPos, followedWorldPos);
+        var tempPos = target.parent.convertToNodeSpaceAR(cc.pAdd(delta, this._halfScreenSize));
+
+        if (this._boundarySet) {
+            if (this._boundaryFullyCovered)
+                return;
+
+            target.setPosition(cc.clampf(tempPos.x, this.leftBoundary, this.rightBoundary), cc.clampf(tempPos.y, this.bottomBoundary, this.topBoundary));
+        } else {
+            target.setPosition(tempPos.x, tempPos.y);
+        }
+    },
+
+    isDone:function () {
+        return ( !this._followedNode.isRunning() );
+    },
+
+    stop:function () {
+        this.setTarget(null);
+        cc.Action.prototype.stop.call(this);
     }
-};
+});
+
 
 var _FlipX = cc.FlipX;
 cc.FlipX = _FlipX.extend({
@@ -271,67 +245,32 @@ cc.ToggleVisibility.prototype.update = function (dt) {
 
 // Special call func
 cc.callFunc = function (selector, selectorTarget, data) {
-    var callback = function (sender, data) {
+    var callback = function (sender) {
         if (sender) {
             sender = sender._owner || sender;
         }
         selector.call(this, sender, data);
     };
-    var action = cc.CallFunc.create(callback, selectorTarget, data);
-    if (!ENABLE_GC_FOR_NATIVE_OBJECTS) {
-        action.retain();
-        action._retained = true;
-    }
+    var action = selectorTarget ? cc.CallFunc.create(callback, selectorTarget) : cc.CallFunc.create(callback);
     return action;
 };
 
 cc.CallFunc.prototype._ctor = function (selector, selectorTarget, data) {
     if(selector !== undefined){
-        var callback = function (sender, data) {
+        var callback = function (sender) {
             if (sender) {
                 sender = sender._owner || sender;
             }
             selector.call(this, sender, data);
         };
-        if(selectorTarget === undefined)
+        if (selectorTarget === undefined) {
             this.initWithFunction(callback);
-        else this.initWithFunction(callback, selectorTarget, data);
-    }
-    if (!ENABLE_GC_FOR_NATIVE_OBJECTS) {
-        this.retain();
-        this._retained = true;
+        }
+        else {
+            this.initWithFunction(callback, selectorTarget);
+        }
     }
 };
-
-function setChainFuncReplacer (proto, name) {
-    var oldFunc = proto[name];
-    proto[name] = function (...args) {
-        if (this._retained) {
-            this.release();
-            this._retained = false;
-        }
-        var newAction = oldFunc.apply(this, args);
-        newAction.retain();
-        newAction._retained = true;
-        return newAction;
-    };
-}
-
-if (!ENABLE_GC_FOR_NATIVE_OBJECTS) {
-    setChainFuncReplacer(cc.ActionInterval.prototype, 'repeat');
-    setChainFuncReplacer(cc.ActionInterval.prototype, 'repeatForever');
-    setChainFuncReplacer(cc.ActionInterval.prototype, 'easing');
-
-    var jsbRunAction = cc.Node.prototype.runAction;
-    cc.Node.prototype.runAction = function (action) {
-        jsbRunAction.call(this, action);
-        if (action._retained) {
-            action.release();
-            action._retained = false;
-        }
-        return action;
-    };
-}
 
 function getSGTarget (target) {
     if (target instanceof cc.Component) {
@@ -350,20 +289,19 @@ cc.ActionManager.prototype.addAction = function (action, target, paused) {
     target = getSGTarget(target);
     if (target) {
         jsbAddAction.call(this, action, target, paused);
-        if (!ENABLE_GC_FOR_NATIVE_OBJECTS && action._retained) {
-            action.release();
-            action._retained = false;
-        }
     }
 };
 
 function actionMgrFuncReplacer (funcName, targetPos) {
     var proto = cc.ActionManager.prototype;
     var oldFunc = proto[funcName];
-    proto[funcName] = function (...args) {
-        for (var i = 0; i < args.length; i++) {
+    proto[funcName] = function () {
+        var args = [];
+        for (var i = 0; i < arguments.length; i++) {
             if (i === targetPos)
-                args[i] = getSGTarget(args[i]);
+                args[i] = getSGTarget(arguments[i]);
+            else
+                args[i] = arguments[i];
         }
         if (!args[targetPos]) {
             return;
@@ -410,7 +348,6 @@ cc.ActionManager.prototype.pauseTargets = function (targetsToPause) {
 
 
 function syncPositionUpdate (dt) {
-    this._jsbUpdate(dt);
     var target = this._getSgTarget();
     if (target._owner) {
         target._owner.x = target.getPositionX();
@@ -419,7 +356,6 @@ function syncPositionUpdate (dt) {
 }
 
 function syncRotationUpdate (dt) {
-    this._jsbUpdate(dt);
     var target = this._getSgTarget();
     if (target._owner) {
         target._owner.rotationX = target.getRotationX();
@@ -428,7 +364,6 @@ function syncRotationUpdate (dt) {
 }
 
 function syncScaleUpdate (dt) {
-    this._jsbUpdate(dt);
     var target = this._getSgTarget();
     if (target._owner) {
         target._owner.scaleX = target.getScaleX();
@@ -437,7 +372,6 @@ function syncScaleUpdate (dt) {
 }
 
 function syncRemoveSelfUpdate (dt) {
-    this._jsbUpdate(dt);
     var target = this._getSgTarget();
     if (target._owner) {
         target._owner.removeFromParent();
@@ -445,7 +379,6 @@ function syncRemoveSelfUpdate (dt) {
 }
 
 function syncSkewUpdate (dt) {
-    this._jsbUpdate(dt);
     var target = this._getSgTarget();
     if (target._owner) {
         target._owner.skewX = target.getSkewX();
@@ -454,7 +387,6 @@ function syncSkewUpdate (dt) {
 }
 
 function syncOpacityUpdate (dt) {
-    this._jsbUpdate(dt);
     var target = this._getSgTarget();
     if (target._owner) {
         target._owner.opacity = target.getOpacity();
@@ -462,10 +394,10 @@ function syncOpacityUpdate (dt) {
 }
 
 function syncColorUpdate (dt) {
-    this._jsbUpdate(dt);
     var target = this._getSgTarget();
     if (target._owner) {
-        target._owner.color = target.getColor();
+        var color = target.getColor();
+        target._owner.color = color;
     }
 }
 
@@ -492,6 +424,5 @@ var actionUpdate = {
 
 for (var key in actionUpdate) {
     var action = cc[key];
-    action.prototype._jsbUpdate = action.prototype.update;
     action.prototype.update = actionUpdate[key];
 }

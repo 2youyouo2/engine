@@ -44,12 +44,14 @@ var getAudioFromPath = function (path) {
     }
 
     audio = new Audio(path);
-    audio.on('ended', function () {
+    var callback = function () {
         var id = this.instanceId;
         delete id2audio[id];
         var index = list.indexOf(id);
         cc.js.array.fastRemoveAt(list, index);
-    });
+    };
+    audio.on('ended', callback);
+    audio.on('stop', callback);
     id2audio[id] = audio;
 
     audio.instanceId = id;
@@ -93,14 +95,21 @@ var audioEngine = {
      * @param {Number} volume - Volume size.
      * @return {Number} audioId
      * @example
-     * //example
      * var audioID = cc.audioEngine.play(path, false, 0.5);
      */
     play: function (filePath, loop, volume/*, profile*/) {
+        if (CC_DEBUG && (typeof filePath !== 'string')) {
+            cc.errorID(8400);
+            return;
+        }
+
         var audio = getAudioFromPath(filePath);
         var callback = function () {
             audio.setLoop(loop || false);
-            audio.setVolume(volume || 1);
+            if (typeof volume != 'number' || isNaN(volume)) {
+                volume = 1;
+            }
+            audio.setVolume(volume);
             audio.play();
         };
         audio.__callback = callback;
@@ -117,7 +126,6 @@ var audioEngine = {
      * @param {Number} audioID - audio id.
      * @param {Boolean} loop - Whether cycle.
      * @example
-     * //example
      * cc.audioEngine.setLoop(id, true);
      */
     setLoop: function (audioID, loop) {
@@ -134,7 +142,6 @@ var audioEngine = {
      * @param {Number} audioID - audio id.
      * @return {Boolean} Whether cycle.
      * @example
-     * //example
      * cc.audioEngine.isLoop(id);
      */
     isLoop: function (audioID) {
@@ -148,10 +155,9 @@ var audioEngine = {
      * !#en Set the volume of audio.
      * !#zh 设置音量（0.0 ~ 1.0）。
      * @method setVolume
-     * @param {Number} audioID audio id.
-     * @param {Number} volume Volume must be in 0.0~1.0 .
+     * @param {Number} audioID - audio id.
+     * @param {Number} volume - Volume must be in 0.0~1.0 .
      * @example
-     * //example
      * cc.audioEngine.setVolume(id, 0.5);
      */
     setVolume: function (audioID, volume) {
@@ -171,10 +177,9 @@ var audioEngine = {
      * !#en The volume of the music max value is 1.0,the min value is 0.0 .
      * !#zh 获取音量（0.0 ~ 1.0）。
      * @method getVolume
-     * @param {Number} audioID audio id.
-     * @return {Boolean}
+     * @param {Number} audioID - audio id.
+     * @return {Number}
      * @example
-     * //example
      * var volume = cc.audioEngine.getVolume(id);
      */
     getVolume: function (audioID) {
@@ -188,11 +193,10 @@ var audioEngine = {
      * !#en Set current time
      * !#zh 设置当前的音频时间。
      * @method setCurrentTime
-     * @param {Number} audioID audio id.
-     * @param {Number} sec current time.
+     * @param {Number} audioID - audio id.
+     * @param {Number} sec - current time.
      * @return {Boolean}
      * @example
-     * //example
      * cc.audioEngine.setCurrentTime(id, 2);
      */
     setCurrentTime: function (audioID, sec) {
@@ -214,10 +218,9 @@ var audioEngine = {
      * !#en Get current time
      * !#zh 获取当前的音频播放时间。
      * @method getCurrentTime
-     * @param {Number} audioID audio id.
+     * @param {Number} audioID - audio id.
      * @return {Number} audio current time.
      * @example
-     * //example
      * var time = cc.audioEngine.getCurrentTime(id);
      */
     getCurrentTime: function (audioID) {
@@ -231,10 +234,9 @@ var audioEngine = {
      * !#en Get audio duration
      * !#zh 获取音频总时长。
      * @method getDuration
-     * @param {Number} audioID audio id.
+     * @param {Number} audioID - audio id.
      * @return {Number} audio duration.
      * @example
-     * //example
      * var time = cc.audioEngine.getDuration(id);
      */
     getDuration: function (audioID) {
@@ -248,10 +250,9 @@ var audioEngine = {
      * !#en Get audio state
      * !#zh 获取音频状态。
      * @method getState
-     * @param {Number} audioID audio id.
+     * @param {Number} audioID - audio id.
      * @return {audioEngine.AudioState} audio duration.
      * @example
-     * //example
      * var state = cc.audioEngine.getState(id);
      */
     getState: function (audioID) {
@@ -265,19 +266,19 @@ var audioEngine = {
      * !#en Set Audio finish callback
      * !#zh 设置一个音频结束后的回调
      * @method setFinishCallback
-     * @param {Number} audioID audio id.
-     * @param {Function} callback loaded callback.
+     * @param {Number} audioID - audio id.
+     * @param {Function} callback - loaded callback.
      * @example
-     * //example
      * cc.audioEngine.setFinishCallback(id, function () {});
      */
     setFinishCallback: function (audioID, callback) {
         var audio = getAudioFromId(audioID);
         if (!audio)
             return;
+        audio.off('ended', audio._finishCallback);
 
-        audio.off('ended');
-        audio.on('ended', callback);
+        audio._finishCallback = callback;
+        audio.on('ended', audio._finishCallback);
     },
 
     /**
@@ -286,7 +287,6 @@ var audioEngine = {
      * @method pause
      * @param {Number} audioID - The return value of function play.
      * @example
-     * //example
      * cc.audioEngine.pause(audioID);
      */
     pause: function (audioID) {
@@ -303,7 +303,6 @@ var audioEngine = {
      * !#zh 暂停现在正在播放的所有音频。
      * @method pauseAll
      * @example
-     * //example
      * cc.audioEngine.pauseAll();
      */
     pauseAll: function () {
@@ -341,7 +340,6 @@ var audioEngine = {
      * !#zh 恢复播放所有之前暂停的所有音频。
      * @method resumeAll
      * @example
-     * //example
      * cc.audioEngine.resumeAll();
      */
     resumeAll: function () {
@@ -359,7 +357,6 @@ var audioEngine = {
      * @method stop
      * @param {Number} audioID - The return value of function play.
      * @example
-     * //example
      * cc.audioEngine.stop(audioID);
      */
     stop: function (audioID) {
@@ -368,7 +365,6 @@ var audioEngine = {
             return false;
         audio.off('load', audio.__callback);
         audio.stop();
-        audio.emit('ended');
         return true;
     },
 
@@ -377,7 +373,6 @@ var audioEngine = {
      * !#zh 停止正在播放的所有音频。
      * @method stopAll
      * @example
-     * //example
      * cc.audioEngine.stopAll();
      */
     stopAll: function () {
@@ -386,7 +381,6 @@ var audioEngine = {
             if (audio && audio.stop) {
                 audio.stop();
                 audio.off('load', audio.__callback);
-                audio.emit('ended');
             }
         }
     },
@@ -395,9 +389,8 @@ var audioEngine = {
      * !#en Set up an audio can generate a few examples.
      * !#zh 设置一个音频可以设置几个实例
      * @method setMaxAudioInstance
-     * @param {Number} num a number of instances to be created from within an audio
+     * @param {Number} num - a number of instances to be created from within an audio
      * @example
-     * //example
      * cc.audioEngine.setMaxAudioInstance(20);
      */
     setMaxAudioInstance: function (num) {
@@ -408,9 +401,8 @@ var audioEngine = {
      * !#en Getting audio can produce several examples.
      * !#zh 获取一个音频可以设置几个实例
      * @method getMaxAudioInstance
-     * @return {Number} a number of instances to be created from within an audio
+     * @return {Number} a - number of instances to be created from within an audio
      * @example
-     * //example
      * cc.audioEngine.getMaxAudioInstance();
      */
     getMaxAudioInstance: function () {
@@ -423,7 +415,6 @@ var audioEngine = {
      * @method uncache
      * @param {String} filePath
      * @example
-     * //example
      * cc.audioEngine.uncache(filePath);
      */
     uncache: function (filePath) {
@@ -444,7 +435,6 @@ var audioEngine = {
      * !#zh 卸载所有音频。
      * @method uncacheAll
      * @example
-     * //example
      * cc.audioEngine.uncacheAll();
      */
     uncacheAll: function () {
@@ -464,15 +454,14 @@ var audioEngine = {
     /**
      * !#en Preload audio file.
      * !#zh 预加载一个音频
-     * @param filePath The file path of an audio.
-     * @param callback The callback of an audio.
      * @method preload
+     * @param {String} filePath - The file path of an audio.
+     * @param {Function} [callback] - The callback of an audio.
      * @example
-     * //example
      * cc.audioEngine.preload(path);
      */
     preload: function (filePath, callback) {
-        cc.loader.load(filePath, function (error) {
+        cc.loader.load(filePath, callback && function (error) {
             if (!error) {
                 callback();
             }
@@ -480,12 +469,11 @@ var audioEngine = {
     },
 
     /**
-     * !#en Set a size, the unit is KB，Over this size is directly resolved into DOM nodes
-     * !#zh 设置一个以kb为单位的尺寸，大于这个尺寸的音频在加载的时候会强制使用 dom 方式加载
-     * @param kb The file path of an audio.
+     * !#en Set a size, the unit is KB. Over this size is directly resolved into DOM nodes.
+     * !#zh 设置一个以 KB 为单位的尺寸，大于这个尺寸的音频在加载的时候会强制使用 dom 方式加载
      * @method setMaxWebAudioSize
+     * @param {Number} kb - The file path of an audio.
      * @example
-     * //example
      * cc.audioEngine.setMaxWebAudioSize(300);
      */
     // Because webAudio takes up too much memory，So allow users to manually choose

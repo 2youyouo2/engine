@@ -41,6 +41,7 @@ var CHILD_REORDER = 'child-reorder';
 var ERR_INVALID_NUMBER = CC_EDITOR && 'The %s is invalid';
 
 var Misc = require('./utils/misc');
+var Event = require('./event/event');
 //var RegisteredInEditor = Flags.RegisteredInEditor;
 
 var ActionManagerExist = !!cc.ActionManager;
@@ -57,32 +58,28 @@ var EventType = cc.Enum({
     /**
      * !#en The event type for touch start event, you can use its value directly: 'touchstart'
      * !#zh 当手指触摸到屏幕时。
-     * @property TOUCH_START
-     * @type {String}
+     * @property {String} TOUCH_START
      * @static
      */
     TOUCH_START: 'touchstart',
     /**
      * !#en The event type for touch move event, you can use its value directly: 'touchmove'
      * !#zh 当手指在屏幕上目标节点区域内移动时。
-     * @property TOUCH_MOVE
-     * @type {String}
+     * @property {String} TOUCH_MOVE
      * @static
      */
     TOUCH_MOVE: 'touchmove',
     /**
      * !#en The event type for touch end event, you can use its value directly: 'touchend'
      * !#zh 当手指在目标节点区域内离开屏幕时。
-     * @property TOUCH_END
-     * @type {String}
+     * @property {String} TOUCH_END
      * @static
      */
     TOUCH_END: 'touchend',
     /**
      * !#en The event type for touch end event, you can use its value directly: 'touchcancel'
      * !#zh 当手指在目标节点区域外离开屏幕时。
-     * @property TOUCH_CANCEL
-     * @type {String}
+     * @property {String} TOUCH_CANCEL
      * @static
      */
     TOUCH_CANCEL: 'touchcancel',
@@ -90,48 +87,42 @@ var EventType = cc.Enum({
     /**
      * !#en The event type for mouse down events, you can use its value directly: 'mousedown'
      * !#zh 当鼠标按下时触发一次。
-     * @property MOUSE_DOWN
-     * @type {String}
+     * @property {String} MOUSE_DOWN
      * @static
      */
     MOUSE_DOWN: 'mousedown',
     /**
      * !#en The event type for mouse move events, you can use its value directly: 'mousemove'
      * !#zh 当鼠标在目标节点在目标节点区域中移动时，不论是否按下。
-     * @property MOUSE_MOVE
-     * @type {String}
+     * @property {String} MOUSE_MOVE
      * @static
      */
     MOUSE_MOVE: 'mousemove',
     /**
      * !#en The event type for mouse enter target events, you can use its value directly: 'mouseenter'
      * !#zh 当鼠标移入目标节点区域时，不论是否按下。
-     * @property MOUSE_ENTER
-     * @type {String}
+     * @property {String} MOUSE_ENTER
      * @static
      */
     MOUSE_ENTER: 'mouseenter',
     /**
      * !#en The event type for mouse leave target events, you can use its value directly: 'mouseleave'
      * !#zh 当鼠标移出目标节点区域时，不论是否按下。
-     * @property MOUSE_LEAVE
-     * @type {String}
+     * @property {String} MOUSE_LEAVE
      * @static
      */
     MOUSE_LEAVE: 'mouseleave',
     /**
      * !#en The event type for mouse up events, you can use its value directly: 'mouseup'
      * !#zh 当鼠标从按下状态松开时触发一次。
-     * @property MOUSE_UP
-     * @type {String}
+     * @property {String} MOUSE_UP
      * @static
      */
     MOUSE_UP: 'mouseup',
     /**
      * !#en The event type for mouse wheel events, you can use its value directly: 'mousewheel'
      * !#zh 当鼠标滚轮滚动时。
-     * @property MOUSE_WHEEL
-     * @type {String}
+     * @property {String} MOUSE_WHEEL
      * @static
      */
     MOUSE_WHEEL: 'mousewheel',
@@ -155,6 +146,9 @@ var _mouseEvents = [
 var _currentHovered = null;
 
 var _touchStartHandler = function (touch, event) {
+    if (CC_JSB) {
+        event = Event.EventTouch.pool.get(event);
+    }
     var pos = touch.getLocation();
     var node = this.owner;
 
@@ -168,6 +162,9 @@ var _touchStartHandler = function (touch, event) {
     return false;
 };
 var _touchMoveHandler = function (touch, event) {
+    if (CC_JSB) {
+        event = Event.EventTouch.pool.get(event);
+    }
     var node = this.owner;
     event.type = EventType.TOUCH_MOVE;
     event.touch = touch;
@@ -175,6 +172,9 @@ var _touchMoveHandler = function (touch, event) {
     node.dispatchEvent(event);
 };
 var _touchEndHandler = function (touch, event) {
+    if (CC_JSB) {
+        event = Event.EventTouch.pool.get(event);
+    }
     var pos = touch.getLocation();
     var node = this.owner;
 
@@ -194,16 +194,21 @@ var _mouseDownHandler = function (event) {
     var node = this.owner;
 
     if (node._hitTest(pos, this)) {
+        if (CC_JSB) {
+            event = Event.EventMouse.pool.get(event);
+        }
         event.type = EventType.MOUSE_DOWN;
+        event.bubbles = true;
         node.dispatchEvent(event);
-        event.stopPropagation();
     }
 };
 var _mouseMoveHandler = function (event) {
     var pos = event.getLocation();
     var node = this.owner;
     if (node._hitTest(pos, this)) {
-        event.stopPropagation();
+        if (CC_JSB) {
+            event = Event.EventMouse.pool.get(event);
+        }
         if (!this._previousIn) {
             // Fix issue when hover node switched, previous hovered node won't get MOUSE_LEAVE notification
             if (_currentHovered) {
@@ -217,9 +222,13 @@ var _mouseMoveHandler = function (event) {
             this._previousIn = true;
         }
         event.type = EventType.MOUSE_MOVE;
+        event.bubbles = true;
         node.dispatchEvent(event);
     }
     else if (this._previousIn) {
+        if (CC_JSB) {
+            event = Event.EventMouse.pool.get(event);
+        }
         event.type = EventType.MOUSE_LEAVE;
         node.dispatchEvent(event);
         this._previousIn = false;
@@ -230,21 +239,25 @@ var _mouseUpHandler = function (event) {
     var pos = event.getLocation();
     var node = this.owner;
 
-    if (node._hitTest(pos, this)) {
-        event.type = EventType.MOUSE_UP;
-        node.dispatchEvent(event);
-        event.stopPropagation();
+    if (CC_JSB) {
+        event = Event.EventMouse.pool.get(event);
     }
+    event.type = EventType.MOUSE_UP;
+    event.bubbles = true;
+    node.dispatchEvent(event);
 };
 var _mouseWheelHandler = function (event) {
     var pos = event.getLocation();
     var node = this.owner;
 
     if (node._hitTest(pos, this)) {
-        event.type = EventType.MOUSE_WHEEL;
-        node.dispatchEvent(event);
         //FIXME: separate wheel event and other mouse event.
-        // event.stopPropagation();
+        if (CC_JSB) {
+            event = Event.EventMouse.pool.get(event);
+        }
+        event.type = EventType.MOUSE_WHEEL;
+        event.bubbles = true;
+        node.dispatchEvent(event);
     }
 };
 
@@ -381,11 +394,8 @@ var Node = cc.Class({
                         this._sgNode.setPositionX(value);
 
                         // fast check event
-                        var capListeners = this._capturingListeners &&
-                            this._capturingListeners._callbackTable[POSITION_CHANGED];
-                        var bubListeners = this._bubblingListeners &&
-                            this._bubblingListeners._callbackTable[POSITION_CHANGED];
-                        if ((capListeners && capListeners.length > 0) || (bubListeners && bubListeners.length > 0)) {
+                        var cache = this._hasListenerCache;
+                        if (cache && cache[POSITION_CHANGED]) {
                             // send event
                             if (CC_EDITOR) {
                                 this.emit(POSITION_CHANGED, new cc.Vec2(oldValue, localPosition.y));
@@ -427,11 +437,8 @@ var Node = cc.Class({
                         this._sgNode.setPositionY(value);
 
                         // fast check event
-                        var capListeners = this._capturingListeners &&
-                            this._capturingListeners._callbackTable[POSITION_CHANGED];
-                        var bubListeners = this._bubblingListeners &&
-                            this._bubblingListeners._callbackTable[POSITION_CHANGED];
-                        if ((capListeners && capListeners.length > 0) || (bubListeners && bubListeners.length > 0)) {
+                        var cache = this._hasListenerCache;
+                        if (cache && cache[POSITION_CHANGED]) {
                             // send event
                             if (CC_EDITOR) {
                                 this.emit(POSITION_CHANGED, new cc.Vec2(localPosition.x, oldValue));
@@ -468,7 +475,10 @@ var Node = cc.Class({
                     this._rotationX = this._rotationY = value;
                     this._sgNode.rotation = value;
 
-                    this.emit(ROTATION_CHANGED);
+                    var cache = this._hasListenerCache;
+                    if (cache && cache[ROTATION_CHANGED]) {
+                        this.emit(ROTATION_CHANGED);
+                    }
                 }
             }
         },
@@ -491,7 +501,10 @@ var Node = cc.Class({
                     this._rotationX = value;
                     this._sgNode.rotationX = value;
 
-                    this.emit(ROTATION_CHANGED);
+                    var cache = this._hasListenerCache;
+                    if (cache && cache[ROTATION_CHANGED]) {
+                        this.emit(ROTATION_CHANGED);
+                    }
                 }
             },
         },
@@ -514,7 +527,10 @@ var Node = cc.Class({
                     this._rotationY = value;
                     this._sgNode.rotationY = value;
 
-                    this.emit(ROTATION_CHANGED);
+                    var cache = this._hasListenerCache;
+                    if (cache && cache[ROTATION_CHANGED]) {
+                        this.emit(ROTATION_CHANGED);
+                    }
                 }
             },
         },
@@ -537,7 +553,10 @@ var Node = cc.Class({
                     this._scaleX = value;
                     this._sgNode.scaleX = value;
 
-                    this.emit(SCALE_CHANGED);
+                    var cache = this._hasListenerCache;
+                    if (cache && cache[SCALE_CHANGED]) {
+                        this.emit(SCALE_CHANGED);
+                    }
                 }
             },
         },
@@ -560,7 +579,10 @@ var Node = cc.Class({
                     this._scaleY = value;
                     this._sgNode.scaleY = value;
 
-                    this.emit(SCALE_CHANGED);
+                    var cache = this._hasListenerCache;
+                    if (cache && cache[SCALE_CHANGED]) {
+                        this.emit(SCALE_CHANGED);
+                    }
                 }
             },
         },
@@ -810,29 +832,6 @@ var Node = cc.Class({
         },
 
         /**
-         * Indicate whether ignore the anchor point property for positioning.
-         * @property _ignoreAnchor
-         * @type {Boolean}
-         * @private
-         */
-        _ignoreAnchor: {
-            get () {
-                return this.__ignoreAnchor;
-            },
-            set (value) {
-                if (this.__ignoreAnchor !== value) {
-                    this.__ignoreAnchor = value;
-                    this._sgNode.ignoreAnchor = value;
-                    var sizeProvider = this._sizeProvider;
-                    if (sizeProvider instanceof _ccsg.Node && sizeProvider !== this._sgNode) {
-                        sizeProvider.ignoreAnchor = value;
-                    }
-                    this.emit(ANCHOR_CHANGED);
-                }
-            },
-        },
-
-        /**
          * !#en Z order in depth which stands for the drawing order.
          * !#zh 该节点渲染排序的 Z 轴深度。
          * @property zIndex
@@ -899,7 +898,6 @@ var Node = cc.Class({
          */
         this._sizeProvider = null;
 
-        this.__ignoreAnchor = false;
         this._reorderChildDirty = false;
 
         // cache component
@@ -1020,8 +1018,7 @@ var Node = cc.Class({
                 this._parent = null;
             }
         }
-        else if (CC_TEST ? (/* make CC_JSB mockable*/ Function('return CC_JSB'))() : CC_JSB) {
-            this._sgNode.release();
+        else if (CC_JSB) {
             this._sgNode._entity = null;
             this._sgNode = null;
         }
@@ -1099,7 +1096,7 @@ var Node = cc.Class({
      * It's the recommended way to register touch/mouse event for Node,
      * please do not use cc.eventManager directly for Node.
      * !#zh
-     * 在节点上注册指定类型的回调函数，也可以设置 target 用于绑定响应函数的调用者。<br/>
+     * 在节点上注册指定类型的回调函数，也可以设置 target 用于绑定响应函数的 this 对象。<br/>
      * 同时您可以将事件派发到父节点或者通过调用 stopPropagation 拦截它。<br/>
      * 推荐使用这种方式来监听节点上的触摸或鼠标事件，请不要在节点上直接使用 cc.eventManager。
      * @method on
@@ -1108,7 +1105,7 @@ var Node = cc.Class({
      * @param {Function} callback - The callback that will be invoked when the event is dispatched.
      *                              The callback is ignored if it is a duplicate (the callbacks are unique).
      * @param {Event} callback.event event
-     * @param {Object} [target] - The target to invoke the callback, can be null
+     * @param {Object} [target] - The target (this object) to invoke the callback, can be null
      * @param {Boolean} [useCapture=false] - When set to true, the capture argument prevents callback
      *                              from being invoked when the event's eventPhase attribute value is BUBBLING_PHASE.
      *                              When false, callback will NOT be invoked when event's eventPhase attribute value is CAPTURING_PHASE.
@@ -1183,7 +1180,7 @@ var Node = cc.Class({
      * @method off
      * @param {String} type - A string representing the event type being removed.
      * @param {Function} callback - The callback to remove.
-     * @param {Object} [target] - The target to invoke the callback, if it's not given, only callback without target will be removed
+     * @param {Object} [target] - The target (this object) to invoke the callback, if it's not given, only callback without target will be removed
      * @param {Boolean} [useCapture=false] - Specifies whether the callback being removed was registered as a capturing callback or not.
      *                              If not specified, useCapture defaults to false. If a callback was registered twice,
      *                              one with capture and one without, each must be removed separately. Removal of a capturing callback
@@ -1305,14 +1302,12 @@ var Node = cc.Class({
             h = this.height;
         var rect = cc.rect(0, 0, w, h);
         
-        var trans;
-        if (cc.Camera && cc.Camera.main) {
-            trans = cc.Camera.main.getNodeToCameraTransform(this);
+        var Camera = cc.Camera;
+        if (Camera && Camera.main && Camera.main.containsNode(this)) {
+            point = Camera.main.getCameraToWorldPoint(point);
         }
-        else {
-            trans = this.getNodeToWorldTransform();
-        }
-
+        
+        var trans = this.getNodeToWorldTransform();
         cc._rectApplyAffineTransformIn(rect, trans);
         var left = point.x - rect.x,
             right = rect.x + rect.width - point.x,
@@ -1596,11 +1591,8 @@ var Node = cc.Class({
         this._sgNode.setPosition(x, y);
 
         // fast check event
-        var capListeners = this._capturingListeners &&
-            this._capturingListeners._callbackTable[POSITION_CHANGED];
-        var bubListeners = this._bubblingListeners &&
-            this._bubblingListeners._callbackTable[POSITION_CHANGED];
-        if ((capListeners && capListeners.length > 0) || (bubListeners && bubListeners.length > 0)) {
+        var cache = this._hasListenerCache;
+        if (cache && cache[POSITION_CHANGED]) {
             // send event
             if (CC_EDITOR) {
                 this.emit(POSITION_CHANGED, oldPosition);
@@ -1650,7 +1642,10 @@ var Node = cc.Class({
             this._scaleY = scaleY;
             this._sgNode.setScale(scaleX, scaleY);
 
-            this.emit(SCALE_CHANGED);
+            var cache = this._hasListenerCache;
+            if (cache && cache[SCALE_CHANGED]) {
+                this.emit(SCALE_CHANGED);
+            }
         }
     },
 
@@ -2390,7 +2385,6 @@ var Node = cc.Class({
         sgNode.setScale(self._scaleX, self._scaleY);
         sgNode.setSkewX(self._skewX);
         sgNode.setSkewY(self._skewY);
-        sgNode.setIgnoreAnchorPointForPosition(self.__ignoreAnchor);
 
         var arrivalOrder = sgNode._arrivalOrder;
         sgNode.setLocalZOrder(self._localZOrder);
@@ -2439,7 +2433,6 @@ var Node = cc.Class({
                 sizeProvider.setAnchorPoint(this._anchorPoint);
                 sizeProvider.setColor(this._color);
                 if (sizeProvider !== this._sgNode) {
-                    sizeProvider.ignoreAnchor = this.__ignoreAnchor;
                     sizeProvider.setOpacityModifyRGB(this._opacityModifyRGB);
                     if (!this._cascadeOpacityEnabled) {
                         sizeProvider.setOpacity(this._opacity);

@@ -27,7 +27,7 @@
 /**
  * <p>_ccsg.TMXLayer represents the TMX layer. </p>
  *
- * <p>It is a subclass of cc.SpriteBatchNode. By default the tiles are rendered using a cc.TextureAtlas. <br />
+ * <p>It is a subclass of cc.SpriteBatchNode.<br />
  * If you modify a tile on runtime, then, that tile will become a _ccsg.Sprite, otherwise no _ccsg.Sprite objects are created. <br />
  * The benefits of using _ccsg.Sprite objects as tiles are: <br />
  * - tiles (_ccsg.Sprite) can be rotated/scaled/moved with a nice API </p>
@@ -79,7 +79,6 @@ _ccsg.TMXLayer = _ccsg.Node.extend(/** @lends _ccsg.TMXLayer# */{
     _useAutomaticVertexZ: null,
     //used for optimization
     _reusedTile: null,
-    _atlasIndexArray: null,
     //used for retina display
     _contentScaleFactor: null,
 
@@ -99,7 +98,6 @@ _ccsg.TMXLayer = _ccsg.Node.extend(/** @lends _ccsg.TMXLayer# */{
      */
     ctor:function (tilesetInfo, layerInfo, mapInfo) {
         cc.SpriteBatchNode.prototype.ctor.call(this);
-        this._descendants = [];
 
         this._layerSize = cc.size(0, 0);
         this._mapTileSize = cc.size(0, 0);
@@ -132,8 +130,8 @@ _ccsg.TMXLayer = _ccsg.Node.extend(/** @lends _ccsg.TMXLayer# */{
         }
         var tw = tileset._tileSize.width,
             th = tileset._tileSize.height,
-            imageW = tex._contentSize.width,
-            imageH = tex._contentSize.height,
+            imageW = tex.width,
+            imageH = tex.height,
             spacing = tileset.spacing,
             margin = tileset.margin,
 
@@ -146,7 +144,7 @@ _ccsg.TMXLayer = _ccsg.Node.extend(/** @lends _ccsg.TMXLayer# */{
             grids = this._texGrids,
             grid = null,
             override = grids[gid] ? true : false,
-            texelCorrect = cc.macro.FIX_ARTIFACTS_BY_STRECHING_TEXEL ? 0.5 : 0;
+            texelCorrect = cc.macro.FIX_ARTIFACTS_BY_STRECHING_TEXEL_TMX ? 0.5 : 0;
 
         for (; gid < maxGid; ++gid) {
             // Avoid overlapping
@@ -294,6 +292,11 @@ _ccsg.TMXLayer = _ccsg.Node.extend(/** @lends _ccsg.TMXLayer# */{
         } else {
             renderer.pushRenderCommand(cmd);
         }
+
+        if(cc._renderType === cc.game.RENDER_TYPE_WEBGL) {
+            renderer.pushRenderCommand(this._renderCmd._disableDepthTestCmd);
+        }
+
         cmd._dirtyFlag = 0;
     },
 

@@ -1,6 +1,6 @@
 {
   "name": "cocos-creator-js",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Cocos2d-html5 is a cross-platform 2D game engine written in Javascript, based on Cocos2d-X and licensed under MIT. It incorporates the same high level api as “Cocos2d JS-binding engine” and compatible with Cocos2d-X. It currently supports canvas and WebGL renderering.",
   "homepage": "http://www.cocos2d-x.org",
   "authors": [
@@ -39,13 +39,13 @@
     "gulp-shell": "0.4.1",
     "gulp-size": "2.1.0",
     "gulp-sourcemaps": "1.5.2",
-    "gulp-uglify": "^2.1.2",
+    "gulp-uglify": "^3.0.0",
     "gulp-util": "3.0.6",
     "jshint-stylish": "2.1.0",
     "multipipe": "0.3.0",
     "persistify": "^1.1.1",
     "require-dir": "0.3.0",
-    "uglify-js-harmony": "2.7.7",
+    "uglify-es": "^3.0.26",
     "vinyl": "1.1.0",
     "vinyl-buffer": "1.0.0",
     "vinyl-source-stream": "1.0.0",

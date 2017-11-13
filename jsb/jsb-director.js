@@ -73,6 +73,8 @@ cc.js.mixin(cc.director, {
 
         // WidgetManager
         cc._widgetManager.init(this);
+
+        cc.loader.init(this);
     },
 
     purgeDirector: function () {
@@ -167,16 +169,26 @@ cc.js.mixin(cc.director, {
      * @param {Function} [onLaunched] - The function invoked at the scene after launch.
      */
     runSceneImmediate: function (scene, onBeforeLoadScene, onLaunched) {
-        var id, node, game = cc.game;
-        var persistNodes = game._persistRootNodes;
+        const console = window.console;    // should mangle
+        const INIT_SCENE = CC_DEBUG ? 'InitScene' : 'I';
+        const AUTO_RELEASE = CC_DEBUG ? 'AutoRelease' : 'AR';
+        const DESTROY = CC_DEBUG ? 'Destroy' : 'D';
+        const ATTACH_PERSIST = CC_DEBUG ? 'AttachPersist' : 'AP';
+        const ACTIVATE = CC_DEBUG ? 'Activate' : 'A';
 
         if (scene instanceof cc.Scene) {
+            console.time(INIT_SCENE);
             scene._load();  // ensure scene initialized
+            console.timeEnd(INIT_SCENE);
         }
 
         // detach persist nodes
-        for (id in persistNodes) {
-            node = persistNodes[id];
+        var game = cc.game;
+        var persistNodeList = Object.keys(game._persistRootNodes).map(function (x) {
+            return game._persistRootNodes[x];
+        });
+        for (let i = 0; i < persistNodeList.length; i++) {
+            let node = persistNodeList[i];
             game._ignoreRemovePersistNode = node;
             node.parent = null;
             game._ignoreRemovePersistNode = null;
@@ -185,10 +197,13 @@ cc.js.mixin(cc.director, {
         var oldScene = this._scene;
 
         // auto release assets
+        console.time(AUTO_RELEASE);
         var autoReleaseAssets = oldScene && oldScene.autoReleaseAssets && oldScene.dependAssets;
-        AutoReleaseUtils.autoRelease(cc.loader, autoReleaseAssets, scene.dependAssets);
+        AutoReleaseUtils.autoRelease(autoReleaseAssets, scene.dependAssets, persistNodeList);
+        console.timeEnd(AUTO_RELEASE);
 
         // unload scene
+        console.time(DESTROY);
         if (cc.isValid(oldScene)) {
             oldScene.destroy();
         }
@@ -197,6 +212,7 @@ cc.js.mixin(cc.director, {
 
         // purge destroyed nodes belongs to old scene
         cc.Object._deferredDestroy();
+        console.timeEnd(DESTROY);
 
         if (onBeforeLoadScene) {
             onBeforeLoadScene();
@@ -211,9 +227,10 @@ cc.js.mixin(cc.director, {
             sgScene = scene._sgNode;
 
             // Re-attach or replace persist nodes
-            for (id in persistNodes) {
-                node = persistNodes[id];
-                var existNode = scene.getChildByUuid(id);
+            console.time(ATTACH_PERSIST);
+            for (let i = 0; i < persistNodeList.length; i++) {
+                let node = persistNodeList[i];
+                var existNode = scene.getChildByUuid(node.uuid);
                 if (existNode) {
                     // scene also contains the persist node, select the old one
                     var index = existNode.getSiblingIndex();
@@ -224,7 +241,10 @@ cc.js.mixin(cc.director, {
                     node.parent = scene;
                 }
             }
+            console.timeEnd(ATTACH_PERSIST);
+            console.time(ACTIVATE);
             scene._activate();
+            console.timeEnd(ACTIVATE);
         }
 
         // Run or replace rendering scene
@@ -390,7 +410,9 @@ cc.js.mixin(cc.director, {
             }
         }
         //cc.AssetLibrary.unloadAsset(uuid);     // force reload
+        console.time('LoadScene ' + uuid);
         cc.AssetLibrary.loadAsset(uuid, function (error, sceneAsset) {
+            console.timeEnd('LoadScene ' + uuid);
             var self = cc.director;
             self._loadingScene = '';
             if (error) {
@@ -463,20 +485,22 @@ cc.Director._EVENT_NEXT_TICK = '_director_next_tick';
 
 // Register listener objects in cc.Director to avoid possible crash caused by cc.eventManager.addCustomListener.
 // For reasons that we don't understand yet, JSFunctionWrapper couldn't very well hold function reference in cc.eventManager.
-cc.Director._beforeUpdateListener = {
+cc.Director._beforeUpdateListener = cc.EventListener.create({
     event: cc.EventListener.CUSTOM,
     eventName: cc.Director.EVENT_BEFORE_UPDATE,
     callback: function () {
         // cocos-creator/fireball#5157
         cc.director.emit(cc.Director._EVENT_NEXT_TICK);
+        // User can use this event to do things before update
+        cc.director.emit(cc.Director.EVENT_BEFORE_UPDATE);
         // Call start for new added components
         cc.director._compScheduler.startPhase();
         // Update for components
         var dt = cc.director.getDeltaTime();
         cc.director._compScheduler.updatePhase(dt);
     }
-};
-cc.Director._afterUpdateListener = {
+});
+cc.Director._afterUpdateListener = cc.EventListener.create({
     event: cc.EventListener.CUSTOM,
     eventName: cc.Director.EVENT_AFTER_UPDATE,
     callback: function () {
@@ -490,23 +514,23 @@ cc.Director._afterUpdateListener = {
 
         cc.director.emit(cc.Director.EVENT_BEFORE_VISIT, this);
     }
-};
-cc.Director._afterVisitListener = {
+});
+cc.Director._afterVisitListener = cc.EventListener.create({
     event: cc.EventListener.CUSTOM,
     eventName: cc.Director.EVENT_AFTER_VISIT,
     callback: function () {
         cc.director.emit(cc.Director.EVENT_AFTER_VISIT, this);
     }
-};
-cc.Director._afterDrawListener = {
+});
+cc.Director._afterDrawListener = cc.EventListener.create({
     event: cc.EventListener.CUSTOM,
     eventName: cc.Director.EVENT_AFTER_DRAW,
     callback: function () {
         cc.director.emit(cc.Director.EVENT_AFTER_DRAW, this);
     }
-};
+});
 
-cc.eventManager.addEventListenerWithFixedPriority(cc.EventListener.create(cc.Director._beforeUpdateListener), 1);
-cc.eventManager.addEventListenerWithFixedPriority(cc.EventListener.create(cc.Director._afterUpdateListener), 1);
-cc.eventManager.addEventListenerWithFixedPriority(cc.EventListener.create(cc.Director._afterVisitListener), 1);
-cc.eventManager.addEventListenerWithFixedPriority(cc.EventListener.create(cc.Director._afterDrawListener), 1);
+cc.eventManager.addEventListenerWithFixedPriority(cc.Director._beforeUpdateListener, 1);
+cc.eventManager.addEventListenerWithFixedPriority(cc.Director._afterUpdateListener, 1);
+cc.eventManager.addEventListenerWithFixedPriority(cc.Director._afterVisitListener, 1);
+cc.eventManager.addEventListenerWithFixedPriority(cc.Director._afterDrawListener, 1);

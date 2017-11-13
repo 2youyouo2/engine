@@ -32,6 +32,8 @@ var Loader = require('./loader');
 var AssetTable = require('./asset-table');
 var callInNextTick = require('../platform/utils').callInNextTick;
 var AutoReleaseUtils = require('./auto-release-utils');
+// var pushToMap = require('../utils/misc').pushToMap;
+var ReleasedAssetChecker = CC_DEBUG && require('./released-asset-checker');
 
 var resources = new AssetTable();
 
@@ -121,12 +123,26 @@ function CCLoader () {
 
     // assets to release automatically
     this._autoReleaseSetting = {};
+
+    if (CC_DEBUG) {
+        this._releasedAssetChecker_DEBUG = new ReleasedAssetChecker();
+    }
 }
 JS.extend(CCLoader, Pipeline);
 var proto = CCLoader.prototype;
 
+proto.init = function (director) {
+    if (CC_DEBUG) {
+        var self = this;
+        director.on(cc.Director.EVENT_BEFORE_VISIT, function () {
+            self._releasedAssetChecker_DEBUG.checkCouldRelease(self._cache);
+        });
+    }
+};
+
 /**
- * Get XMLHttpRequest.
+ * Gets a new XMLHttpRequest instance.
+ * @method getXMLHttpRequest
  * @returns {XMLHttpRequest}
  */
 proto.getXMLHttpRequest = getXMLHttpRequest;
@@ -225,26 +241,25 @@ proto.load = function(resources, progressCallback, completeCallback) {
         var res = getResWithUrl(resource);
         if (!res.url && !res.uuid)
             continue;
-        var item = this.getItem(res.url);
+        var item = this._cache[res.url];
         _sharedResources.push(item || res);
     }
 
     var queue = LoadingItems.create(this, progressCallback, function (errors, items) {
         callInNextTick(function () {
-            if (!completeCallback)
-                return;
-
-            if (singleRes) {
-                var id = res.url;
-                completeCallback.call(self, items.getError(id), items.getContent(id));
+            if (completeCallback) {
+                if (singleRes) {
+                    let id = res.url;
+                    completeCallback.call(self, items.getError(id), items.getContent(id));
+                }
+                else {
+                    completeCallback.call(self, errors, items);
+                }
+                completeCallback = null;
             }
-            else {
-                completeCallback.call(self, errors, items);
-            }
-            completeCallback = null;
 
             if (CC_EDITOR) {
-                for (var id in self._cache) {
+                for (let id in self._cache) {
                     if (self._cache[id].complete) {
                         self.removeItem(id);
                     }
@@ -264,7 +279,7 @@ proto.flowInDeps = function (owner, urlList, callback) {
         var res = getResWithUrl(urlList[i]);
         if (!res.url && ! res.uuid)
             continue;
-        var item = this.getItem(res.url);
+        var item = this._cache[res.url];
         if (item) {
             _sharedList.push(item);
         }
@@ -646,7 +661,7 @@ proto.getRes = function (url, type) {
         }
     }
     if (item && item.alias) {
-        item = this._cache[item.alias];
+        item = item.alias;
     }
     return (item && item.complete) ? item.content : null;
 };
@@ -761,7 +776,10 @@ proto.release = function (asset) {
                 }
             }
             else if (asset instanceof cc.Texture2D) {
-                cc.textureCache.removeTextureForKey(item.url);
+                cc.textureCache.removeTextureForKey(item.rawUrl || item.url);
+            }
+            if (CC_DEBUG && removed) {
+                this._releasedAssetChecker_DEBUG.setReleased(item, id);
             }
         }
     }
@@ -922,6 +940,7 @@ proto.setAutoReleaseRecursively = function (assetOrUrlOrUuid, autoRelease) {
         cc.warnID(4902);
     }
 };
+
 
 /**
  * !#en

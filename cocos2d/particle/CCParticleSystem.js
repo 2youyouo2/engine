@@ -24,12 +24,9 @@
  ****************************************************************************/
 
 require('./CCParticleAsset');
-require('./CCSGParticleSystem.js');
-require('./CCSGParticleSystemCanvasRenderCmd.js');
-require('./CCSGParticleSystemWebGLRenderCmd.js');
-require('./CCParticleBatchNode.js');
-require('./CCParticleBatchNodeCanvasRenderCmd.js');
-require('./CCParticleBatchNodeWebGLRenderCmd.js');
+require('./CCSGParticleSystem');
+require('./CCSGParticleSystemCanvasRenderCmd');
+require('./CCSGParticleSystemWebGLRenderCmd');
 
 var BlendFactor = cc.BlendFunc.BlendFactor;
 /**

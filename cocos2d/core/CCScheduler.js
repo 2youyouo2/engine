@@ -535,7 +535,7 @@ cc.Scheduler = cc._Class.extend({
         //selector, target, interval, repeat, delay, paused
         //selector, target, interval, paused
         if (arguments.length === 4 || arguments.length === 5) {
-            paused = repeat;
+            paused = !!repeat;
             repeat = cc.macro.REPEAT_FOREVER;
             delay = 0;
         }
@@ -550,8 +550,8 @@ cc.Scheduler = cc._Class.extend({
             element = HashTimerEntry.get(null, target, 0, null, null, paused);
             this._arrayForTimers.push(element);
             this._hashForTimers[instanceId] = element;
-        } else {
-            cc.assert(element.paused === paused, '');
+        } else if (element.paused !== paused) {
+            cc.warnID(1511);
         }
 
         var timer, i;

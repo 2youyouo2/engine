@@ -675,6 +675,7 @@ cc.TMXMapInfo = cc.SAXParser.extend(/** @lends cc.TMXMapInfo# */{
                 } else {
                     tileset.sourceImage = this._resources + (this._resources ? "/" : "") + imagename;
                 }
+
                 this.setTilesets(tileset);
 
                 // parse tile offset

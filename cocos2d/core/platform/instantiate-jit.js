@@ -1,15 +1,15 @@
 /****************************************************************************
- Copyright (c) 2013-2016 Chukong Technologies Inc.
+ Copyright (c) 2013-2017 Chukong Technologies Inc.
 
  http://www.cocos.com
 
  Permission is hereby granted, free of charge, to any person obtaining a copy
  of this software and associated engine source code (the "Software"), a limited,
- worldwide, royalty-free, non-assignable, revocable and  non-exclusive license
+  worldwide, royalty-free, non-assignable, revocable and  non-exclusive license
  to use Cocos Creator solely to develop games on your target platforms. You shall
- not use Cocos Creator software for developing other software or tools that's
- used for developing games. You are not granted to publish, distribute,
- sublicense, and/or sell copies of Cocos Creator.
+  not use Cocos Creator software for developing other software or tools that's
+  used for developing games. You are not granted to publish, distribute,
+  sublicense, and/or sell copies of Cocos Creator.
 
  The software or tools in this License Agreement are licensed, not sold.
  Chukong Aipu reserves all rights not expressly granted to you.
@@ -31,6 +31,7 @@ var PersistentMask = CCObject.Flags.PersistentMask;
 var Attr = require('./attribute');
 var JS = require('./js');
 var CCClass = require('./CCClass');
+var Compiler = require('./compiler');
 
 var SERIALIZABLE = Attr.DELIMETER + 'serializable';
 var DEFAULT = Attr.DELIMETER + 'default';
@@ -42,6 +43,17 @@ const LOCAL_OBJ = 'o';
 const LOCAL_TEMP_OBJ = 't';
 const LOCAL_ARRAY = 'a';
 const LINE_INDEX_OF_NEW_OBJ = 0;
+
+const DEFAULT_MODULE_CACHE = {
+    'cc.Node': 'cc.Node',
+    'cc.Sprite': 'cc.Sprite',
+    'cc.Label': 'cc.Label',
+    'cc.Button': 'cc.Button',
+    'cc.Widget': 'cc.Widget',
+    'cc.Animation': 'cc.Animation',
+    'cc.ClickEvent': false,
+    'cc.PrefabInfo': false
+};
 
 // HELPER CLASSES
 
@@ -158,25 +170,6 @@ function equalsToDefault (def, value) {
     return false;
 }
 
-function flattenCodeArray (array, separator) {
-    var strList = [];
-    (function deepFlatten (array) {
-        for (var i = 0; i < array.length; i++) {
-            var item = array[i];
-            if (Array.isArray(item)) {
-                deepFlatten(item);
-            }
-            // else if (item instanceof Declaration) {
-            //     strList.push(item.toString());
-            // }
-            else {
-                strList.push(item);
-            }
-        }
-    })(array);
-    return strList.join(separator);
-}
-
 function getPropAccessor (key) {
     return IDENTIFIER_RE.test(key) ? ('.' + key) : ('[' + escapeForJS(key) + ']');
 }
@@ -204,6 +197,9 @@ function Parser (obj, parent) {
     // datas for generated code
     this.objs = [];
     this.funcs = [];
+
+    this.funcModuleCache = JS.createMap();
+    JS.mixin(this.funcModuleCache, DEFAULT_MODULE_CACHE);
 
     // {String[]} - variable names for circular references,
     //              not really global, just local variables shared between sub functions
@@ -234,11 +230,11 @@ function Parser (obj, parent) {
     if (this.globalVariables.length > 0) {
         globalVariablesDeclaration = VAR + this.globalVariables.join(',') + ';';
     }
-    var code = flattenCodeArray(['return (function(R){',
+    var code = Compiler.flattenCodeArray(['return (function(R){',
                                     globalVariablesDeclaration || [],
                                     this.codeArray,
                                     'return o;',
-                                 '})'], CC_DEV ? '\n' : '');
+                                 '})']);
 
     // generate method and bind with objs
     this.result = Function('O', 'F', code)(this.objs, this.funcs);
@@ -258,16 +254,25 @@ var proto = Parser.prototype;
 
 proto.getFuncModule = function (func, usedInNew) {
     var clsName = JS.getClassName(func);
-    var clsNameIsModule = clsName.indexOf('.') !== -1;
-    if (clsNameIsModule) {
-        try {
-            // ensure is module
-            clsNameIsModule = (func === Function('return ' + clsName)());
+    if (clsName) {
+        var cache = this.funcModuleCache[clsName];
+        if (cache) {
+            return cache;
+        }
+        else if (cache === undefined) {
+            var clsNameIsModule = clsName.indexOf('.') !== -1;
             if (clsNameIsModule) {
-                return clsName;
+                try {
+                    // ensure is module
+                    clsNameIsModule = (func === Function('return ' + clsName)());
+                    if (clsNameIsModule) {
+                        this.funcModuleCache[clsName] = clsName;
+                        return clsName;
+                    }
+                }
+                catch (e) {}
             }
         }
-        catch (e) {}
     }
     var index = this.funcs.indexOf(func);
     if (index < 0) {
@@ -275,7 +280,11 @@ proto.getFuncModule = function (func, usedInNew) {
         this.funcs.push(func);
     }
     var res = 'F[' + index + ']';
-    return usedInNew ? '(' + res + ')' : res;
+    if (usedInNew) {
+        res = '(' + res + ')';
+    }
+    this.funcModuleCache[clsName] = res;
+    return res;
 };
 
 proto.getObjRef = function (obj) {
@@ -311,7 +320,7 @@ proto.enumerateCCClass = function (codeArray, obj, klass) {
     var attrs = Attr.getClassAttrs(klass);
     for (var p = 0; p < props.length; p++) {
         var key = props[p];
-        if (CC_EDITOR && key === '_id') {
+        if ((CC_EDITOR || CC_TEST) && key === '_id') {
             if (obj instanceof cc._BaseNode || obj instanceof cc.Component) {
                 continue;
             }
@@ -473,6 +482,9 @@ proto.instantiateObj = function (obj) {
     }
     else if (ctor === Object) {
         createCode = new Declaration(LOCAL_OBJ, '{}');
+    }
+    else if (!ctor) {
+        createCode = new Declaration(LOCAL_OBJ, 'Object.create(null)');
     }
     else {
         // do not clone unknown type

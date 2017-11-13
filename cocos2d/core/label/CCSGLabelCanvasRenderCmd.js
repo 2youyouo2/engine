@@ -445,9 +445,9 @@
             }
         }
 
-        this._texture._textureLoaded = false;
-        // Hack. because we delete _htmlElementObj after usage in WEBGL mode
-        this._texture._htmlElementObj = this._labelCanvas;
+        this._texture.loaded = false;
+        // Hack. because we delete _image after usage in WEBGL mode
+        this._texture._image = this._labelCanvas;
         this._texture.handleLoadedTexture(true);
     };
 
@@ -501,19 +501,13 @@
 
     proto.constructor = _ccsg.Label.CanvasRenderCmd;
 
-    proto.transform = function (parentCmd, recursive) {
-        this.originTransform(parentCmd, recursive);
-
-        var bb = this._currentRegion,
+    proto._doCulling = function () {
+        var rect = cc.visibleRect,
+            bb = this._currentRegion,
             l = bb._minX, r = bb._maxX, b = bb._minY, t = bb._maxY,
-            rect = cc.visibleRect,
             vl = rect.left.x, vr = rect.right.x, vt = rect.top.y, vb = rect.bottom.y;
-        if (r < vl || l > vr || t < vb || b > vt) {
-            this._needDraw = false;
-        }
-        else {
-            this._needDraw = true;
-        }
+            
+        this._needDraw = !(r < vl || l > vr || t < vb || b > vt);
     };
 
     proto.rendering = function (ctx, scaleX, scaleY) {
@@ -551,7 +545,7 @@
                 sw = textureWidth;
                 sh = textureHeight;
 
-                var image = this._texture._htmlElementObj;
+                var image = this._texture._image;
                 if (this._texture._pattern !== '') {
                     wrapper.setFillStyle(context.createPattern(image, this._texture._pattern));
                     context.fillRect(x, y, w, h);

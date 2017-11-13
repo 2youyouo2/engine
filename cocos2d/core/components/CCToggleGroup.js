@@ -38,8 +38,7 @@ var ToggleGroup = cc.Class({
         this._toggleItems = [];
     },
     editor: CC_EDITOR && {
-        menu: 'i18n:MAIN_MENU.component.ui/ToggleGroup',
-        help: 'i18n:COMPONENT.help_url.toggle_group'
+        help: 'i18n:COMPONENT.help_url.toggleGroup'
     },
 
     properties: {
@@ -61,7 +60,7 @@ var ToggleGroup = cc.Class({
          * @property {Array} toggleItems
          */
         toggleItems: {
-            get: function (){
+            get: function () {
                 return this._toggleItems;
             }
         }
@@ -123,7 +122,16 @@ var ToggleGroup = cc.Class({
     start: function () {
         this._makeAtLeastOneToggleChecked();
     }
+});
 
+var JS = require('../platform/js');
+var showed = false;
+cc.js.get(cc, 'ToggleGroup', function () {
+    if (!showed) {
+        cc.logID(1405, 'cc.ToggleGroup', 'cc.ToggleContainer');
+        showed = true;
+    }
+    return ToggleGroup;
 });
 
 cc.ToggleGroup = module.exports = ToggleGroup;

@@ -23,7 +23,6 @@
  THE SOFTWARE.
  ****************************************************************************/
 
-cc._tmp = cc._tmp || {};
 cc._LogInfos = cc._LogInfos || {};
 
 /**
@@ -33,14 +32,8 @@ cc._LogInfos = cc._LogInfos || {};
  * @property {String} ENGINE_VERSION
  */
 var engineVersion;
-engineVersion = '1.5.0';
+engineVersion = '1.6.0';
 window['CocosEngine'] = cc.ENGINE_VERSION = engineVersion;
-
-/**
- * @property {DrawingPrimitive} _drawingUtil - drawing primitive of game engine
- * @private
- */
-cc._drawingUtil = null;
 
 /**
  * @property {CanvasRenderingContext2D|WebGLRenderingContext} _renderContext - main Canvas 2D/3D Context of game engine

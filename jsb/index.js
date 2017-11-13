@@ -25,50 +25,29 @@
 
 'use strict';
 
-// Check version
-var _engineNumberVersion = (function () {
-    var result = /Cocos2d\-JS\sv([\d]+)\.([\d]+)/.exec(cc.ENGINE_VERSION);
-    if (result && result[1]) {
-        return {
-            major: parseInt(result[1]),
-            minor: parseInt(result[2])
-        };
-    }
-    else {
-        return null;
-    }
-})();
-
-var originLog = console.log;
-
-// overwrite original console.log
-try {
-    console.log = function (...args) {
-        originLog(cc.js.formatStr.apply(null, args));
-    };
-}
-catch (e) {
-}
+// check whether support jit
+cc.supportJit = typeof Function('') === 'function';
 
 function defineMacro (name, defaultValue) {
     // if "global_defs" not preprocessed by uglify, just declare them globally,
     // this may happened in release version's preview page.
     // (use evaled code to prevent mangle by uglify)
-    return 'if(typeof ' + name +  '=="undefined")' +
-           name + '=' + defaultValue + ';';
+    if (typeof window[name] == 'undefined') {
+        window[name] = defaultValue;
+    }
 }
 function defined (name) {
-    return 'typeof ' + name + '=="object"';
+    return typeof window[name] == 'object';
 }
-Function(
-    defineMacro('CC_TEST', defined('tap') + '||' + defined('QUnit')) +
-    defineMacro('CC_EDITOR', defined('Editor') + '&&' + defined('process') + '&&"electron" in process.versions') +
-    defineMacro('CC_PREVIEW', '!CC_EDITOR') +
-    defineMacro('CC_DEV', true) +    // (CC_EDITOR && !CC_BUILD) || CC_PREVIEW || CC_TEST
-    defineMacro('CC_DEBUG', true) +  // CC_DEV || Debug Build
-    defineMacro('CC_JSB', defined('jsb')) +
-    defineMacro('CC_BUILD', false)
-)();
+
+defineMacro('CC_TEST', defined('tap') || defined('QUnit'));
+defineMacro('CC_EDITOR', defined('Editor') && defined('process') && ('electron' in process.versions));
+defineMacro('CC_PREVIEW', !CC_EDITOR);
+defineMacro('CC_DEV', true);    // (CC_EDITOR && !CC_BUILD) || CC_PREVIEW || CC_TEST
+defineMacro('CC_DEBUG', true);  // CC_DEV || Debug Build
+defineMacro('CC_JSB', defined('jsb'));
+defineMacro('CC_BUILD', false);
+
 
 if (!cc.ClassManager) {
     cc.ClassManager = window.ClassManager;
@@ -83,6 +62,9 @@ if (CC_DEV) {
 }
 
 // polyfills
+require('../polyfill/misc');
+// str.startswith isn't supported in JavaScriptCore which is shipped with iOS8.
+require('../polyfill/string');
 if (!(CC_EDITOR && Editor.isMainProcess)) {
     require('../polyfill/typescript');
 }
@@ -93,10 +75,11 @@ require('../cocos2d/core/value-types');
 require('../cocos2d/core/utils/find');
 require('../cocos2d/core/utils/mutable-forward-iterator');
 require('../cocos2d/core/event');
+require('../cocos2d/core/event-manager/CCEvent');
 require('../cocos2d/core/event-manager/CCSystemEvent');
 require('../CCDebugger');
 
-if (CC_DEV) {
+if (CC_DEBUG) {
     //Debug Info ID map
     require('../DebugInfos');
 }
@@ -116,7 +99,7 @@ require('./jsb-scale9sprite');
 require('./jsb-label');
 require('./jsb-editbox');
 require('./jsb-videoplayer');
-require('./jsb-webview.js');
+require('./jsb-webview');
 require('./jsb-particle');
 require('./jsb-spine');
 require('./jsb-enums');
@@ -127,9 +110,5 @@ require('./jsb-audio');
 require('./jsb-tiledmap');
 require('./jsb-box2d');
 require('./jsb-dragonbones');
-
-if (cc.runtime) {
-    require('./versions/jsb-polyfill-runtime');
-}
 
 require('../extends');

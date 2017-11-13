@@ -49,7 +49,7 @@ AssetLoader.prototype.handle = function (item, callback) {
             callback(error);
         }
         else {
-            item.url = url;
+            item.url = item.rawUrl = url;
             item.isRawAsset = isRawAsset;
             if (isRawAsset) {
                 var ext = Path.extname(url).toLowerCase();
@@ -65,9 +65,12 @@ AssetLoader.prototype.handle = function (item, callback) {
                     url: url,
                     type: ext,
                     error: null,
-                    alias: item.id,
+                    alias: item,
                     complete: true
                 };
+                if (CC_EDITOR) {
+                    self.pipeline._cache[url] = reusedArray[0];
+                }
                 queue.append(reusedArray);
                 // Dispatch to other raw type downloader
                 item.type = ext;

@@ -38,6 +38,18 @@ var callUpdateInTryCatch = CC_EDITOR && callerFunctor('update', 'dt');
 var callLateUpdateInTryCatch = CC_EDITOR && callerFunctor('lateUpdate', 'dt');
 var callOnDisableInTryCatch = CC_EDITOR && callerFunctor('onDisable');
 
+var supportJit = cc.supportJit;
+var callStart = supportJit ? 'c.start();c._objFlags|=' + IsStartCalled : function (c) {
+    c.start();
+    c._objFlags |= IsStartCalled;
+};
+var callUpdate = supportJit ? 'c.update(dt)' : function (c, dt) {
+    c.update(dt);
+};
+var callLateUpdate = supportJit ? 'c.lateUpdate(dt)' : function (c, dt) {
+    c.lateUpdate(dt);
+};
+
 function sortedIndex (array, comp) {
     var order = comp.constructor._executionOrder;
     var id = comp.__instanceId;
@@ -203,14 +215,14 @@ function enableInEditor (comp) {
     }
 }
 
-function createInvokeImpl (code, useDt) {
-    if (CC_EDITOR) {
+function createInvokeImpl (funcOrCode, useDt) {
+    if (typeof funcOrCode === 'function') {
         if (useDt) {
             return function (iterator, dt) {
                 var array = iterator.array;
                 for (iterator.i = 0; iterator.i < array.length; ++iterator.i) {
                     var comp = array[iterator.i];
-                    code(comp, dt);
+                    funcOrCode(comp, dt);
                 }
             };
         }
@@ -219,7 +231,7 @@ function createInvokeImpl (code, useDt) {
                 var array = iterator.array;
                 for (iterator.i = 0; iterator.i < array.length; ++iterator.i) {
                     var comp = array[iterator.i];
-                    code(comp);
+                    funcOrCode(comp);
                 }
             };
         }
@@ -235,7 +247,7 @@ function createInvokeImpl (code, useDt) {
         var body = 'var a=it.array;' +
                    'for(it.i=0;it.i<a.length;++it.i){' +
                    'var c=a[it.i];' +
-                   code +
+                   funcOrCode +
                    '}';
         if (useDt) {
             return Function('it', 'dt', body);
@@ -253,11 +265,11 @@ function createInvokeImpl (code, useDt) {
 function ctor () {
     // invokers
     this.startInvoker = new OneOffInvoker(createInvokeImpl(
-        CC_EDITOR ? callStartInTryCatch : 'c.start();c._objFlags|=' + IsStartCalled));
+        CC_EDITOR ? callStartInTryCatch : callStart));
     this.updateInvoker = new ReusableInvoker(createInvokeImpl(
-        CC_EDITOR ? callUpdateInTryCatch : 'c.update(dt)', true));
+        CC_EDITOR ? callUpdateInTryCatch : callUpdate, true));
     this.lateUpdateInvoker = new ReusableInvoker(createInvokeImpl(
-        CC_EDITOR ? callLateUpdateInTryCatch : 'c.lateUpdate(dt)', true));
+        CC_EDITOR ? callLateUpdateInTryCatch : callLateUpdate, true));
 
     // components deferred to next frame
     this.scheduleInNextFrame = [];
@@ -309,9 +321,10 @@ var ComponentScheduler = cc.Class({
         // schedule
         if (this._updating) {
             this.scheduleInNextFrame.push(comp);
-            return;
         }
-        this._scheduleImmediate(comp);
+        else {
+            this._scheduleImmediate(comp);
+        }
     },
 
     _onDisabled (comp) {
@@ -432,6 +445,21 @@ var ComponentScheduler = cc.Class({
 
         // call start
         this.startInvoker.invoke();
+        // if (CC_PREVIEW) {
+        //     try {
+        //         this.startInvoker.invoke();
+        //     }
+        //     catch (e) {
+        //         // prevent start from getting into infinite loop
+        //         this.startInvoker._neg.array.length = 0;
+        //         this.startInvoker._zero.array.length = 0;
+        //         this.startInvoker._pos.array.length = 0;
+        //         throw e;
+        //     }
+        // }
+        // else {
+        //     this.startInvoker.invoke();
+        // }
     },
 
     updatePhase (dt) {

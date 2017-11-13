@@ -1,5 +1,5 @@
 /****************************************************************************
- Copyright (c) 2013-2016 Chukong Technologies Inc.
+ Copyright (c) 2013-2017 Chukong Technologies Inc.
 
  http://www.cocos.com
 
@@ -23,15 +23,28 @@
  THE SOFTWARE.
  ****************************************************************************/
 
-'use strict';
-
-// Overwrite main loop
-var scheduleTarget = {
-    update: function (dt) {
-        // Call start for new added components
-        cc.director.emit(cc.Director.EVENT_BEFORE_UPDATE);
-        // Update for components
-        cc.director.emit(cc.Director.EVENT_COMPONENT_UPDATE, dt);
+function deepFlatten (strList, array) {
+    for (var i = 0; i < array.length; i++) {
+        var item = array[i];
+        if (Array.isArray(item)) {
+            deepFlatten(strList, item);
+        }
+        // else if (item instanceof Declaration) {
+        //     strList.push(item.toString());
+        // }
+        else {
+            strList.push(item);
+        }
     }
+}
+
+function flattenCodeArray (array) {
+    var separator = CC_DEV ? '\n' : '';
+    var strList = [];
+    deepFlatten(strList, array);
+    return strList.join(separator);
+}
+
+module.exports = {
+    flattenCodeArray
 };
-cc.Director.getInstance().getScheduler().scheduleUpdateForTarget(scheduleTarget, -1000, false);

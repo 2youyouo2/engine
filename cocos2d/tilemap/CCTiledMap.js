@@ -26,7 +26,7 @@
 require('./CCTiledMapAsset');
 require('./CCTiledLayer');
 require('./CCTiledObjectGroup');
-require('./CCSGTMXTiledMap.js');
+require('./CCSGTMXTiledMap');
 
 /**
  * !#en The orientation of tiled map.
@@ -844,7 +844,7 @@ var TiledMap = cc.Class({
         var self = this;
         if (file) {
             var resPath = cc.url._rawAssets + file.tmxFolderPath;
-            resPath = cc.path._setEndWithSep(resPath, false);
+            resPath = cc.path.stripSep(resPath);
 
             if (CC_EDITOR && cc.sys.os === cc.sys.OS_WINDOWS) {
                 // In windows editor, the key of loaded textures are using '/'.

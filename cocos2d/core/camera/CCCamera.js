@@ -23,10 +23,10 @@
  THE SOFTWARE.
  ****************************************************************************/
 
-var transformDirtyFlag;
+var cullingDirtyFlag;
 
 if (!CC_JSB) {
-    transformDirtyFlag = _ccsg.Node._dirtyFlags.transformDirty;
+    cullingDirtyFlag = _ccsg.Node._dirtyFlags.cullingDirty;
     require('./CCSGCameraNode');
 }
 
@@ -51,6 +51,8 @@ let Camera = cc.Class({
         this._lastViewMatrix = cc.affineTransformMake();
 
         this._sgTarges = [];
+
+        this._checkedTimes = 0;
 
         this.visibleRect = {
             left: cc.v2(),
@@ -107,7 +109,11 @@ let Camera = cc.Class({
         }
     },
 
-    _initSgNode: function () {},
+    _initSgNode: function () {
+        // sgNode is the sizeProvider of the node so we should sync its size with the node,
+        // otherwise the node size will become zero.
+        this._sgNode.setContentSize(this.node.getContentSize(true));
+    },
 
     _addSgTargetInSg: function (target) {
         var sgNode;
@@ -118,17 +124,18 @@ let Camera = cc.Class({
             sgNode = target;
         }
 
-        if (!sgNode) return;
+        if (!sgNode || sgNode._cameraInfo) return;
 
+        sgNode._cameraInfo = {
+            touched: this._checkedTimes
+        };
         this._sgNode.addTarget(sgNode);
 
-        if (this._sgTarges.indexOf(sgNode) === -1) {
-            this._sgTarges.push(sgNode);
-        }
+        this._sgTarges.push(sgNode);
 
         if (!CC_JSB) {
             var cmd = sgNode._renderCmd;
-            cmd.setDirtyFlag(transformDirtyFlag);
+            cmd.setDirtyFlag(cullingDirtyFlag);
             cmd._cameraFlag = Camera.flags.InCamera;
 
             cc.renderer.childrenOrderDirty = true;
@@ -144,14 +151,16 @@ let Camera = cc.Class({
             sgNode = target;
         }
 
-        if (!sgNode) return;
+        if (!sgNode || !sgNode._cameraInfo) return;
 
         this._sgNode.removeTarget(sgNode);
+        delete sgNode._cameraInfo;
+        
         cc.js.array.remove(this._sgTarges, sgNode);
         
         if (!CC_JSB) {
             var cmd = sgNode._renderCmd;
-            cmd.setDirtyFlag(transformDirtyFlag);
+            cmd.setDirtyFlag(cullingDirtyFlag);
             cmd._cameraFlag = 0;
 
             cc.renderer.childrenOrderDirty = true;
@@ -165,6 +174,9 @@ let Camera = cc.Class({
         }
 
         Camera.main = this;
+        if (CC_JSB) {
+            this._sgNode.setEnable(true);
+        }
 
         let targets = this._targets;
         for (let i = 0, l = targets.length; i < l; i++) {
@@ -178,10 +190,14 @@ let Camera = cc.Class({
         }
         
         Camera.main = null;
+        if (CC_JSB) {
+            this._sgNode.setEnable(false);
+        }
 
-        let targets = this._targets;
-        for (let i = 0, l = targets.length; i < l; i++) {
-            this._removeTargetInSg(targets[i]);
+        // target sgNode may changed, so directly remove sgTargets here.
+        let sgTargets = this._sgTarges;
+        for (let i = sgTargets.length - 1; i >= 0; i--) {
+            this._removeTargetInSg(sgTargets[i]);
         }
     },
 
@@ -236,6 +252,7 @@ let Camera = cc.Class({
      * Returns the matrix that transform the node's (local) space coordinates into the camera's space coordinates.
      * !#zh
      * 返回一个将节点坐标系转换到摄像机坐标系下的矩阵
+     * @method getNodeToCameraTransform
      * @param {Node} node - the node which should transform
      * @return {AffineTransform}
      */
@@ -251,7 +268,8 @@ let Camera = cc.Class({
      * !#en
      * Conver a camera coordinates point to world coordinates.
      * !#zh
-     * 讲一个摄像机坐标系下的点转换到世界坐标系下。
+     * 将一个摄像机坐标系下的点转换到世界坐标系下。
+     * @method getCameraToWorldPoint
      * @param {Node} point - the point which should transform
      * @return {Vec2}
      */
@@ -267,6 +285,7 @@ let Camera = cc.Class({
      * Check whether the node is in the camera.
      * !#zh
      * 检测节点是否被此摄像机影响
+     * @method containsNode
      * @param {Node} node - the node which need to check
      * @return {Boolean}
      */
@@ -286,19 +305,51 @@ let Camera = cc.Class({
         return false;
     },
 
-    _setSgNodesTransformDirty: function () {
+    _setSgNodesCullingDirty: function () {
         let sgTarges = this._sgTarges;
         for (let i = 0; i < sgTarges.length; i++) {
             if (CC_JSB) {
-                sgTarges[i].markTransformUpdated();    
+                sgTarges[i].markCullingDirty();
             }
             else {
-                sgTarges[i]._renderCmd.setDirtyFlag(transformDirtyFlag);
+                sgTarges[i]._renderCmd.setDirtyFlag(cullingDirtyFlag);
+            }
+        }
+    },
+
+    _checkSgTargets: function () {
+        let targets = this._targets;
+        let sgTarges = this._sgTarges;
+
+        let checkedTimes = ++this._checkedTimes;
+
+        for (let i = 0, l = targets.length; i < l; i++) {
+            let target = targets[i];
+            let sgNode = target;
+
+            if (target instanceof cc.Node) {
+                sgNode = target._sgNode;
+                if (sgNode && !sgNode._cameraInfo) {
+                    this._addSgTargetInSg(sgNode);
+                }
+            }
+
+            if (sgNode) {
+                sgNode._cameraInfo.touched = checkedTimes;
+            }
+        }
+
+        for (let i = sgTarges.length - 1; i >= 0; i--) {
+            let sgTarget = sgTarges[i];
+            if (sgTarget._cameraInfo.touched !== checkedTimes) {
+                this._removeTargetInSg(sgTarget);
             }
         }
     },
 
     lateUpdate: !CC_EDITOR && function () {
+        this._checkSgTargets();
+
         let m = this.viewMatrix;
         let im = this.invertViewMatrix;
         let viewPort = this.viewPort;
@@ -362,7 +413,7 @@ let Camera = cc.Class({
             lvm.tx !== m.tx ||
             lvm.ty !== m.ty
             ) {
-            this._setSgNodesTransformDirty();
+            this._setSgNodesCullingDirty();
             
             lvm.a = m.a;
             lvm.b = m.b;

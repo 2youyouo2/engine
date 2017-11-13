@@ -39,75 +39,55 @@ var ItemState = {
 };
 
 var _queueDeps = {};
-var _parseUrl = function (url) {
-    var result = {};
-    if (!url)
-        return result;
-
-    var split = url.split('?');
-    if (!split || !split[0]) {
-        return result;
-    }
-    result.url = split[0];
-    if (!split[1]) {
-        return result;
-    }
-    result.param = {};
-    split = split[1].split('&');
-    split.forEach(function (item) {
-        var itemSplit = item.split('=');
-        result.param[itemSplit[0]] = itemSplit[1];
-    });
-    return result;
-};
 
 function isIdValid (id) {
     var realId = id.url || id;
     return (typeof realId === 'string');
 }
+
+function _parseUrlParam (url) {
+    if (!url) return undefined;
+    var split = url.split('?');
+    if (!split || !split[0] || !split[1]) {
+        return undefined;
+    }
+    var urlParam = {};
+    var queries = split[1].split('&');
+    queries.forEach(function (item) {
+        var itemSplit = item.split('=');
+        urlParam[itemSplit[0]] = itemSplit[1];
+    });
+    return urlParam;
+}
 function createItem (id, queueId) {
-    var result, urlItem;
+    var url = (typeof id === 'object') ? id.url : id;
+    var result = {
+        queueId: queueId,
+        id: url,
+        url: url, // real download url, maybe changed
+        rawUrl: undefined, // url used in scripts
+        urlParam: _parseUrlParam(url),
+        type: "",
+        error: null,
+        content: null,
+        complete: false,
+        states: {},
+        deps: null
+    };
+
     if (typeof id === 'object') {
-        if (id.url && !id.type) {
-            id.type = Path.extname(id.url).toLowerCase().substr(1);
-        }
-        urlItem = _parseUrl(id.url);
-        result = {
-            queueId: queueId,
-            id: id.url,
-            url: urlItem.url,
-            urlParam: urlItem.param,
-            error: null,
-            content: null,
-            complete: false,
-            states: {},
-            deps: null
-        };
         JS.mixin(result, id);
-    }
-    else if (typeof id === 'string') {
-        urlItem = _parseUrl(id);
-        result = {
-            queueId: queueId,
-            id: id,
-            url: urlItem.url,
-            urlParam: urlItem.param,
-            type: Path.extname(id).toLowerCase().substr(1),
-            error: null,
-            content: null,
-            complete: false,
-            states: {},
-            deps: null
-        };
-    }
-
-    if (result.skips) {
-        for (var i = 0, l = result.skips.length; i < l; i++) {
-            var skip = result.skips[i];
-            result.states[skip] = ItemState.COMPLETE;
+        if (id.skips) {
+            for (var i = 0; i < id.skips.length; i++) {
+                var skip = id.skips[i];
+                result.states[skip] = ItemState.COMPLETE;
+            }
         }
     }
-
+    result.rawUrl = result.url;
+    if (url && !result.type) {
+        result.type = Path.extname(url).toLowerCase().substr(1);
+    }
     return result;
 }
 
@@ -595,7 +575,7 @@ proto.getContent = function (id) {
             ret = item.content;
         }
         else if (item.alias) {
-            ret = this.getContent(item.alias);
+            ret = item.alias.content;
         }
     }
 
@@ -616,7 +596,7 @@ proto.getError = function (id) {
         if (item.error) {
             ret = item.error;
         } else if (item.alias) {
-            ret = this.getError(item.alias);
+            ret = item.alias.error;
         }
     }
 
@@ -688,8 +668,8 @@ proto.removeItem = function (url) {
     delete this.completed[url];
     delete this.map[url];
     if (item.alias) {
-        delete this.completed[item.alias];
-        delete this.map[item.alias];
+        delete this.completed[item.alias.id];
+        delete this.map[item.alias.id];
     }
 
     this.completedCount--;
@@ -726,7 +706,8 @@ proto.itemComplete = function (id) {
         this.onProgress(dep ? dep.completed.length : this.completedCount, dep ? dep.deps.length : this.totalCount, item);
     }
 
-    this.invokeAndRemove(id, item);
+    this.invoke(id, item);
+    this.removeAll(id);
 
     // All completed
     if (!this._appending && this.completedCount >= this.totalCount) {

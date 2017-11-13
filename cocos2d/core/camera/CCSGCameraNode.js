@@ -1,3 +1,4 @@
+var tempMat = new cc.math.Matrix4();
 
 let CameraNode = _ccsg.Node.extend({
     ctor: function () {
@@ -22,22 +23,15 @@ let CameraNode = _ccsg.Node.extend({
     },
 
     addTarget: function (target) {
-        if (target._cameraInfo) return;
-
-        target._cameraInfo = {
-            sgCameraNode: this,
-            originVisit: target.visit
-        };
+        let info = target._cameraInfo;
+        info.sgCameraNode = this;
+        info.originVisit = target.visit;
 
         target.visit = this._visit;
     },
 
     removeTarget: function (target) {
-        let info = target._cameraInfo;
-        if (!info) return;
-        
-        target.visit = info.originVisit;
-        target._cameraInfo = undefined;
+        target.visit = target._cameraInfo.originVisit;
     },
 
     _visit: function (parent) {
@@ -52,15 +46,17 @@ let CameraNode = _ccsg.Node.extend({
     _onBeforeVisit: function () {
         cc.renderer._breakBatch();
 
-        cc.math.glMatrixMode(cc.math.KM_GL_PROJECTION)
-        cc.current_stack.push();
-        cc.current_stack.top.multiply(this._mat);
+        cc.math.glMatrixMode(cc.math.KM_GL_PROJECTION);
+        
+        tempMat.assignFrom(cc.current_stack.top);
+        tempMat.multiply(this._mat);
+        cc.current_stack.push(tempMat);
     },
 
     _onAfterVisit: function () {
         cc.renderer._breakBatch();
         
-        cc.math.glMatrixMode(cc.math.KM_GL_PROJECTION)
+        cc.math.glMatrixMode(cc.math.KM_GL_PROJECTION);
         cc.current_stack.pop();
     },
 

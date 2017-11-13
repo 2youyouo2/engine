@@ -29,6 +29,7 @@ var Loader = require('../load-pipeline/CCLoader');
 var PackDownloader = require('../load-pipeline/pack-downloader');
 var AutoReleaseUtils = require('../load-pipeline/auto-release-utils');
 var decodeUuid = require('../utils/decode-uuid');
+var MD5Pipe = require('../load-pipeline/md5-pipe');
 
 /**
  * The asset library which managing loading/unloading assets in project.
@@ -111,7 +112,7 @@ var AssetLibrary = {
         });
     },
 
-    getImportedDir: function (uuid) {
+    getLibUrlNoExt: function (uuid) {
         if (CC_BUILD) {
             uuid = decodeUuid(uuid);
         }
@@ -149,7 +150,7 @@ var AssetLibrary = {
             result.raw = true;
         }
         else {
-            result.url = this.getImportedDir(uuid) + '.json';
+            result.url = this.getLibUrlNoExt(uuid) + '.json';
             result.raw = false;
         }
         return result;
@@ -274,13 +275,21 @@ var AssetLibrary = {
             return;
         }
 
+
         // 这里将路径转 url，不使用路径的原因是有的 runtime 不能解析 "\" 符号。
         // 不使用 url.format 的原因是 windows 不支持 file:// 和 /// 开头的协议，所以只能用 replace 操作直接把路径转成 URL。
         var libraryPath = options.libraryPath;
         libraryPath = libraryPath.replace(/\\/g, '/');
-        _libraryBase = cc.path._setEndWithSep(libraryPath, '/');
+        _libraryBase = cc.path.stripSep(libraryPath) + '/';
 
         _rawAssetsBase = options.rawAssetsBase;
+
+        var md5AssetsMap = options.md5AssetsMap;
+        if (md5AssetsMap) {
+            var md5Pipe = new MD5Pipe(md5AssetsMap, _libraryBase, _rawAssetsBase);
+            cc.loader.insertPipeAfter(cc.loader.assetLoader, md5Pipe);
+            cc.loader.md5Pipe = md5Pipe;
+        }
 
         // init raw assets
 

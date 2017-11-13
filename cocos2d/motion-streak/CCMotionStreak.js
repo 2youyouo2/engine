@@ -22,8 +22,8 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE.
  ****************************************************************************/
-require('./CCSGMotionStreak.js');
-require('./CCSGMotionStreakWebGLRenderCmd.js');
+require('./CCSGMotionStreak');
+require('./CCSGMotionStreakWebGLRenderCmd');
 /**
  * !#en
  * cc.MotionStreak manages a Ribbon based on it's motion in absolute space.                 <br/>
@@ -164,7 +164,7 @@ var MotionStreak = cc.Class({
             set: function (value) {
                 this._texture = value;
                 if (this._motionStreak) {
-                    if (cc.js.isString(value))
+                    if (value && cc.js.isString(value))
                         value = cc.textureCache.addImage(value);
 
                     this._motionStreak.setTexture(value);

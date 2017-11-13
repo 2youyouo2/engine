@@ -37,9 +37,18 @@ cc.Scale9Sprite.CanvasRenderCmd = function (renderable) {
 var proto = cc.Scale9Sprite.CanvasRenderCmd.prototype = Object.create(_ccsg.Node.CanvasRenderCmd.prototype);
 proto.constructor = cc.Scale9Sprite.CanvasRenderCmd;
 
-proto.transform = function (parentCmd, recursive) {
-    this.originTransform(parentCmd, recursive);
+proto.updateTransform = function (parentCmd) {
+    this.originUpdateTransform(parentCmd);
     this._node._rebuildQuads();
+};
+
+proto._doCulling = function () {
+    var rect = cc.visibleRect,
+        bb = this._currentRegion,
+        l = bb._minX, r = bb._maxX, b = bb._minY, t = bb._maxY,
+        vl = rect.left.x, vr = rect.right.x, vt = rect.top.y, vb = rect.bottom.y;
+        
+    this._needDraw = !(r < vl || l > vr || t < vb || b > vt);
 };
 
 proto._updateDisplayColor = function(parentColor){
@@ -88,9 +97,9 @@ proto.rendering = function (ctx, scaleX, scaleY) {
         }
         var sx,sy,sw,sh;
         var x, y, w,h;
-        var textureWidth = this._textureToRender._pixelWidth;
-        var textureHeight = this._textureToRender._pixelHeight;
-        var image = this._textureToRender._htmlElementObj;
+        var textureWidth = this._textureToRender.width;
+        var textureHeight = this._textureToRender.height;
+        var image = this._textureToRender._image;
         var vertices = node._vertices;
         var uvs = node._uvs;
         var i = 0, off = 0;

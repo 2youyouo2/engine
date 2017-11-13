@@ -34,8 +34,7 @@ var MAX_ACTIVETEXTURE = 0,
     _currentBoundTexture = null,
     _blendingSource = 0,
     _blendingDest = 0,
-    _GLServerState = 0,
-    _uVAO = 0;
+    _GLServerState = 0;
 if (ENABLE_GL_STATE_CACHE) {
     MAX_ACTIVETEXTURE = 16;
     _currentShaderProgram = -1;
@@ -43,8 +42,6 @@ if (ENABLE_GL_STATE_CACHE) {
     _blendingSource = -1;
     _blendingDest = -1;
     _GLServerState = 0;
-    if(macro.TEXTURE_ATLAS_USE_VAO)
-        _uVAO = 0;
 }
 
 // GL State Cache functions
@@ -178,10 +175,10 @@ cc.gl.setProjectionMatrixDirty = function () {
  * If the texture is not already bound, it binds it.<br/>
  * If cc.macro.ENABLE_GL_STATE_CACHE is disabled, it will call glBindTexture() directly.
  * @function
- * @param {Texture2D} textureId
+ * @param {Texture2D} texture
  */
-cc.gl.bindTexture2D = function (textureId) {
-    cc.gl.bindTexture2DN(0, textureId);
+cc.gl.bindTexture2D = function (texture) {
+    cc.gl.bindTexture2DN(0, texture);
 };
 
 /**
@@ -189,24 +186,24 @@ cc.gl.bindTexture2D = function (textureId) {
  * If cc.macro.ENABLE_GL_STATE_CACHE is disabled, it will call glBindTexture() directly.
  * @function
  * @param {Number} textureUnit
- * @param {Texture2D} textureId
+ * @param {Texture2D} texture
  */
-cc.gl.bindTexture2DN = ENABLE_GL_STATE_CACHE ? function (textureUnit, textureId) {
-    if (_currentBoundTexture[textureUnit] === textureId)
+cc.gl.bindTexture2DN = ENABLE_GL_STATE_CACHE ? function (textureUnit, texture) {
+    if (_currentBoundTexture[textureUnit] === texture)
         return;
-    _currentBoundTexture[textureUnit] = textureId;
+    _currentBoundTexture[textureUnit] = texture;
 
     var ctx = cc._renderContext;
     ctx.activeTexture(ctx.TEXTURE0 + textureUnit);
-    if(textureId)
-        ctx.bindTexture(ctx.TEXTURE_2D, textureId._webTextureObj);
+    if(texture)
+        ctx.bindTexture(ctx.TEXTURE_2D, texture._glID);
     else
         ctx.bindTexture(ctx.TEXTURE_2D, null);
-} : function (textureUnit, textureId) {
+} : function (textureUnit, texture) {
     var ctx = cc._renderContext;
     ctx.activeTexture(ctx.TEXTURE0 + textureUnit);
-    if(textureId)
-        ctx.bindTexture(ctx.TEXTURE_2D, textureId._webTextureObj);
+    if(texture)
+        ctx.bindTexture(ctx.TEXTURE_2D, texture._glID);
     else
         ctx.bindTexture(ctx.TEXTURE_2D, null);
 };
@@ -215,10 +212,10 @@ cc.gl.bindTexture2DN = ENABLE_GL_STATE_CACHE ? function (textureUnit, textureId)
  * It will delete a given texture. If the texture was bound, it will invalidate the cached. <br/>
  * If cc.macro.ENABLE_GL_STATE_CACHE is disabled, it will call glDeleteTextures() directly.
  * @function
- * @param {Texture2D} textureId
+ * @param {Texture2D} texture
  */
-cc.gl.deleteTexture2D = function (textureId) {
-    cc.gl.deleteTexture2DN(0, textureId);
+cc.gl.deleteTexture2D = function (texture) {
+    cc.gl.deleteTexture2DN(0, texture);
 };
 
 /**
@@ -226,35 +223,14 @@ cc.gl.deleteTexture2D = function (textureId) {
  * If cc.macro.ENABLE_GL_STATE_CACHE is disabled, it will call glDeleteTextures() directly.
  * @function
  * @param {Number} textureUnit
- * @param {Texture2D} textureId
+ * @param {Texture2D} texture
  */
-cc.gl.deleteTexture2DN = function (textureUnit, textureId) {
+cc.gl.deleteTexture2DN = function (textureUnit, texture) {
     if (ENABLE_GL_STATE_CACHE) {
-        if (textureId === _currentBoundTexture[ textureUnit ])
+        if (texture === _currentBoundTexture[ textureUnit ])
             _currentBoundTexture[ textureUnit ] = -1;
     }
-    cc._renderContext.deleteTexture(textureId._webTextureObj);
-};
-
-/**
- * If the vertex array is not already bound, it binds it.<br/>
- * If cc.macro.ENABLE_GL_STATE_CACHE is disabled, it will call glBindVertexArray() directly.
- * @function
- * @param {Number} vaoId
- */
-cc.gl.bindVAO = function (vaoId) {
-    if (!macro.TEXTURE_ATLAS_USE_VAO)
-        return;
-
-    if (ENABLE_GL_STATE_CACHE) {
-        if (_uVAO !== vaoId) {
-            _uVAO = vaoId;
-            //TODO need fixed
-            //glBindVertexArray(vaoId);
-        }
-    } else {
-        //glBindVertexArray(vaoId);
-    }
+    cc._renderContext.deleteTexture(texture._glID);
 };
 
 /**

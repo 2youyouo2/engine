@@ -72,7 +72,8 @@ module.exports = {
         var _id = node._id;
         var _name = node._name;
         var _active = node._active;
-        var _position = node._position;
+        var x = node._position.x;
+        var y = node._position.y;
         var _rotationX = node._rotationX;
         var _rotationY = node._rotationY;
         var _localZOrder = node._localZOrder;
@@ -80,7 +81,20 @@ module.exports = {
 
         // instantiate prefab
         cc.game._isCloning = true;
-        _prefab.asset._doInstantiate(node);
+        if (cc.supportJit) {
+            _prefab.asset._doInstantiate(node);
+        }
+        else {
+            // root in prefab asset is always synced
+            var prefabRoot = _prefab.asset.data;
+            prefabRoot._prefab._synced = true;
+
+            // use node as the instantiated prefabRoot to make references to prefabRoot in prefab redirect to node
+            prefabRoot._iN$t = node;
+
+            // instantiate prefab and apply to node
+            cc.instantiate._clone(prefabRoot, prefabRoot);
+        }
         cc.game._isCloning = false;
 
         // restore preserved props
@@ -90,7 +104,8 @@ module.exports = {
         node._prefab = _prefab;
         node._name = _name;
         node._active = _active;
-        node._position = _position;
+        node._position.x = x;
+        node._position.y = y;
         node._rotationX = _rotationX;
         node._rotationY = _rotationY;
         node._localZOrder = _localZOrder;

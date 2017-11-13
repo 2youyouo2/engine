@@ -140,15 +140,21 @@ GraphicsBuffer.prototype.alloc = function (cverts, cindices) {
         }
 
         var newBuffer = new Float32Array(nverts * VERTS_FLOAT_LENGTH);
+        var newUint32Buffer = new Uint32Array(newBuffer.buffer);
 
         if (verts) {
-            for (var i = 0, l = verts.length; i < l; i++) {
+            var uint32VertsBuffer = this.uint32VertsBuffer;
+            
+            for (var i = 0, l = verts.length; i < l; i+=VERTS_FLOAT_LENGTH) {
                 newBuffer[i] = verts[i];
+                newBuffer[i + 1] = verts[i+1];
+
+                newUint32Buffer[i + 2] = uint32VertsBuffer[i + 2];
             }
         }
 
         this.vertsBuffer = newBuffer;
-        this.uint32VertsBuffer = new Uint32Array(this.vertsBuffer.buffer);
+        this.uint32VertsBuffer = newUint32Buffer;
     }
 
     var indices = this.indicesBuffer;
@@ -411,7 +417,8 @@ _p._render = function () {
         cc.g_NumberOfDraws++;
     }
 
-    cc.checkGLErrorDebug();
+    if (CC_DEV)
+        cc.checkGLErrorDebug();
 };
 
 _p.rendering = function () {
@@ -736,9 +743,9 @@ _p._expandFill = function () {
         if (path.complex) {
             var data = [];
             var start = offset*VERTS_FLOAT_LENGTH, end = buffer.vertsOffset*VERTS_FLOAT_LENGTH; 
-            for (var i = start; i < end; i+=VERTS_FLOAT_LENGTH) {
-                data.push(buffer.vertsBuffer[i]);
-                data.push(buffer.vertsBuffer[i+1]);
+            for (var j = start; j < end; j+=VERTS_FLOAT_LENGTH) {
+                data.push(buffer.vertsBuffer[j]);
+                data.push(buffer.vertsBuffer[j+1]);
             }
 
             var newIndices = Earcut(data, null, 2);

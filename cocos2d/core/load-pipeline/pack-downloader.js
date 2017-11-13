@@ -24,6 +24,7 @@
  ****************************************************************************/
 
 var JsonUnpacker = require('./json-unpacker');
+var pushToMap = require('../utils/misc').pushToMap;
 
 // {assetUuid: packUuid|[packUuid]}
 // If value is array of packUuid, then the first one will be prioritized for download,
@@ -57,31 +58,16 @@ module.exports = {
             var uuids = packs[packUuid];
             for (var i = 0; i < uuids.length; i++) {
                 var uuid = uuids[i];
-                var allIncludedPacks = uuidToPack[uuid];
-                if (allIncludedPacks) {
-                    if (Array.isArray(allIncludedPacks)) {
-                        allIncludedPacks.push(packUuid);
-                    }
-                    else {
-                        uuidToPack[uuid] = allIncludedPacks = [allIncludedPacks, packUuid];
-                    }
-                    if (uuids.length === 1) {
-                        // the smallest pack must be at the beginning of the array to download more first
-                        var swapToLast = allIncludedPacks[0];
-                        allIncludedPacks[0] = allIncludedPacks[allIncludedPacks.length - 1];
-                        allIncludedPacks[allIncludedPacks.length - 1] = swapToLast;
-                    }
-                }
-                else {
-                    uuidToPack[uuid] = packUuid;
-                }
+                // the smallest pack must be at the beginning of the array to download more first
+                var pushFront = uuids.length === 1;
+                pushToMap(uuidToPack, uuid, packUuid, pushFront);
             }
         }
     },
 
     _loadNewPack: function (uuid, packUuid, callback) {
         var self = this;
-        var packUrl = cc.AssetLibrary.getImportedDir(packUuid) + '.json';
+        var packUrl = cc.AssetLibrary.getLibUrlNoExt(packUuid) + '.json';
         cc.loader.load({ url: packUrl, ignoreMaxConcurrency: true }, function (err, packJson) {
             if (err) {
                 cc.errorID(4916, uuid);

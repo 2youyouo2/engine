@@ -71,6 +71,8 @@ var Animation = cc.Class({
     },
 
     ctor: function () {
+        cc.EventTarget.call(this);
+
         // The actual implement for Animation
         this._animator = null;
 
@@ -78,8 +80,6 @@ var Animation = cc.Class({
         this._didInit = false;
 
         this._currentClip = null;
-
-        this._listeners = [];
     },
 
     properties: {
@@ -170,8 +170,11 @@ var Animation = cc.Class({
 
     start: function () {
         if (!CC_EDITOR && this.playOnLoad && this._defaultClip) {
-            var state = this.getAnimationState(this._defaultClip.name);
-            this._animator.playState(state);
+            var isPlaying = this._animator && this._animator.isPlaying;
+            if (!isPlaying) {
+                var state = this.getAnimationState(this._defaultClip.name);
+                this._animator.playState(state);
+            }
         }
     },
 
@@ -508,7 +511,7 @@ var Animation = cc.Class({
      * @param {Function} callback - The callback that will be invoked when the event is dispatched.
      *                              The callback is ignored if it is a duplicate (the callbacks are unique).
      * @param {Event} callback.event event
-     * @param {Object} [target] - The target to invoke the callback, can be null
+     * @param {Object} [target] - The target (this object) to invoke the callback, can be null
      * @param {Boolean} [useCapture=false] - When set to true, the capture argument prevents callback
      *                              from being invoked when the event's eventPhase attribute value is BUBBLING_PHASE.
      *                              When false, callback will NOT be invoked when event's eventPhase attribute value is CAPTURING_PHASE.
@@ -529,22 +532,15 @@ var Animation = cc.Class({
      */
     on: function (type, callback, target, useCapture) {
         this._init();
-        var listeners = this._listeners;
 
-        for (var i = 0, l = listeners.length; i < l; i++) {
-            var listener = listeners[i];
-            if (listener[0] === type &&
-                listener[1] === callback &&
-                listener[2] === target &&
-                listener[3] === useCapture) {
-                return;
-            }
+        var ret = cc.EventTarget.prototype.on.call(this, type, callback, target, useCapture);
+
+        var array = this._animator._anims.array;
+        for (var i = 0; i < array.length; ++i) {
+            array[i]._setListeners(this);
         }
 
-        this._animator.on(type, callback, target, useCapture);
-        listeners.push([type, callback, target, useCapture]);
-
-        return callback;
+        return ret;
     },
 
 
@@ -556,7 +552,7 @@ var Animation = cc.Class({
      * @method off
      * @param {String} type - A string representing the event type being removed.
      * @param {Function} callback - The callback to remove.
-     * @param {Object} [target] - The target to invoke the callback, if it's not given, only callback without target will be removed
+     * @param {Object} [target] - The target (this object) to invoke the callback, if it's not given, only callback without target will be removed
      * @param {Boolean} [useCapture=false] - Specifies whether the callback being removed was registered as a capturing callback or not.
      *                              If not specified, useCapture defaults to false. If a callback was registered twice,
      *                              one with capture and one without, each must be removed separately. Removal of a capturing callback
@@ -568,23 +564,13 @@ var Animation = cc.Class({
      */
     off: function (type, callback, target, useCapture) {
         this._init();
-        var listeners = this._listeners;
+
+        cc.EventTarget.prototype.off.call(this, type, callback, target, useCapture);
+
         var nameToState = this._nameToState;
-
-        for (var i = listeners.length - 1; i >= 0; i--) {
-            var listener = listeners[i];
-            if (listener[0] === type &&
-                listener[1] === callback &&
-                listener[2] === target &&
-                listener[3] === useCapture) {
-
-                for (var name in nameToState) {
-                    var state = nameToState[name];
-                    state.off(type, callback, target, useCapture);
-                }
-
-                listeners.splice(i, 1);
-            }
+        for (var name in nameToState) {
+            var state = nameToState[name];
+            state._setListeners(null);
         }
     },
 

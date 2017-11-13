@@ -23,7 +23,7 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE.
  ****************************************************************************/
-require('./CCTextUtils.js');
+require('./CCTextUtils');
 var EventTarget = require("../event/event-target");
 var JS = require("../platform/js");
 
@@ -102,7 +102,6 @@ var LetterInfo = function() {
     this._valid = true;
     this._positionX = 0;
     this._positionY = 0;
-    this._atlasIndex = 0;
     this._lineIndex = 0;
 };
 
@@ -453,6 +452,7 @@ _ccsg.Label = _ccsg.Node.extend({
     },
 
     setFontFamily: function (fontFamily) {
+        this._resetBMFont();
         this._fontHandle = fontFamily || "Arial";
         this._labelType = _ccsg.Label.Type.SystemFont;
         this._blendFunc = cc.BlendFunc._alphaPremultiplied();
@@ -731,10 +731,6 @@ _ccsg.Label = _ccsg.Node.extend({
 
                     var letterPositionX = this._lettersInfo[ctr]._positionX + this._linesOffsetX[this._lettersInfo[ctr]._lineIndex];
                     fontChar.setPosition(letterPositionX, py);
-
-                    var index = this._spriteBatchNode.getChildrenCount();
-
-                    this._lettersInfo[ctr]._atlasIndex = index;
 
                     this._updateLetterSpriteScale(fontChar);
 
@@ -1238,7 +1234,7 @@ _ccsg.Label = _ccsg.Node.extend({
 
                 var createLabelSprites = function () {
                     var texture = spriteFrame.getTexture();
-                    self._textureLoaded = texture.isLoaded();
+                    self._textureLoaded = texture.loaded;
                     self._createSpriteBatchNode(texture);
                     self.emit("load");
                 };
@@ -1306,7 +1302,6 @@ _ccsg.Label.pool.get = function (string, fontAsset) {
         label.enableBold(false);
         label.enableItalics(false);
         label.enableUnderline(false);
-        label.setBlendFunc(cc.macro.SRC_ALPHA, cc.macro.ONE_MINUS_SRC_ALPHA);
 
         return label;
     }

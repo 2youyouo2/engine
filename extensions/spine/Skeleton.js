@@ -390,9 +390,8 @@ sp.Skeleton = cc.Class({
     // IMPLEMENT
 
     __preload: function () {
-        if (CC_EDITOR || CC_DEV) {
+        if (CC_EDITOR) {
             var Flags = cc.Object.Flags;
-            this._objFlags &= Flags.PersistentMask; // for v1.0 project
             this._objFlags |= (Flags.IsAnchorLocked | Flags.IsSizeLocked);
         }
         // sgNode 的尺寸不是很可靠 同时 Node 的框框也没办法和渲染匹配 只好强制尺寸为零
@@ -672,8 +671,12 @@ sp.Skeleton = cc.Class({
     },
 
     /**
-     * !#en Sets skeleton data to sp.Skeleton.
-     * !#zh 设置 Skeleton 中的 Skeleton Data。
+     * !#en
+     * Sets runtime skeleton data to sp.Skeleton.<br>
+     * This method is different from the `skeletonData` property. This method is passed in the raw data provided by the Spine runtime, and the skeletonData type is the asset type provided by Creator.
+     * !#zh
+     * 设置底层运行时用到的 SkeletonData。<br>
+     * 这个接口有别于 `skeletonData` 属性，这个接口传入的是 Spine runtime 提供的原始数据，而 skeletonData 的类型是 Creator 提供的资源类型。
      * @method setSkeletonData
      * @param {sp.spine.SkeletonData} skeletonData
      * @param {sp.spine.SkeletonData} ownsSkeletonData
@@ -784,7 +787,7 @@ sp.Skeleton = cc.Class({
      */
     addAnimation: function (trackIndex, name, loop, delay) {
         if (this._sgNode) {
-            return this._sgNode.addAnimation(trackIndex, name, loop, delay);
+            return this._sgNode.addAnimation(trackIndex, name, loop, delay || 0);
         }
         return null;
     },

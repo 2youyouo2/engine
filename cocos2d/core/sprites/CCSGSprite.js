@@ -25,6 +25,7 @@
  ****************************************************************************/
 
 var EventTarget = require("../event/event-target");
+var Misc = require('../utils/misc');
 
 /**
  * <p>_ccsg.Sprite is a 2d image ( http://en.wikipedia.org/wiki/Sprite_(computer_graphics) )  <br/>
@@ -74,17 +75,13 @@ var EventTarget = require("../event/event-target");
  * @property {Boolean}              flippedY            - Indicates whether or not the sprite is flipped on y axis.
  * @property {Number}               offsetX             - <@readonly> The offset position on x axis of the sprite in texture. Calculated automatically by editors like Zwoptex.
  * @property {Number}               offsetY             - <@readonly> The offset position on x axis of the sprite in texture. Calculated automatically by editors like Zwoptex.
- * @property {Number}               atlasIndex          - The index used on the TextureAtlas.
  * @property {Texture2D}         texture             - Texture used to render the sprite.
  * @property {Boolean}              textureRectRotated  - <@readonly> Indicate whether the texture rectangle is rotated.
- * @property {cc.TextureAtlas}      textureAtlas        - The weak reference of the cc.TextureAtlas when the sprite is rendered using via cc.SpriteBatchNode.
  * @property {cc.SpriteBatchNode}   batchNode           - The batch node object if this sprite is rendered by cc.SpriteBatchNode.
  * @property {cc.V3F_C4B_T2F_Quad}  quad                - <@readonly> The quad (tex coords, vertex coords and color) information.
  */
 _ccsg.Sprite = _ccsg.Node.extend({
     dirty:false,
-    atlasIndex:0,
-    textureAtlas:null,
 
     _recursiveDirty:null, //Whether all of the sprite's children needs to be updated
     _shouldBeHidden:false, //should not be drawn because one of the ancestors is not visible
@@ -173,44 +170,11 @@ _ccsg.Sprite = _ccsg.Node.extend({
     },
 
     /**
-     * Returns the index used on the TextureAtlas.
-     * @return {Number}
-     */
-    getAtlasIndex:function () {
-        return this.atlasIndex;
-    },
-
-    /**
-     * Sets the index used on the TextureAtlas.
-     * @warning Don't modify this value unless you know what you are doing
-     * @param {Number} atlasIndex
-     */
-    setAtlasIndex:function (atlasIndex) {
-        this.atlasIndex = atlasIndex;
-    },
-
-    /**
      * Returns the rect of the _ccsg.Sprite in points
      * @return {Rect}
      */
     getTextureRect:function () {
         return cc.rect(this._rect);
-    },
-
-    /**
-     * Returns the weak reference of the cc.TextureAtlas when the sprite is rendered using via cc.SpriteBatchNode
-     * @return {cc.TextureAtlas}
-     */
-    getTextureAtlas:function () {
-        return this.textureAtlas;
-    },
-
-    /**
-     * Sets the weak reference of the cc.TextureAtlas when the sprite is rendered using via cc.SpriteBatchNode
-     * @param {cc.TextureAtlas} textureAtlas
-     */
-    setTextureAtlas:function (textureAtlas) {
-        this.textureAtlas = textureAtlas;
     },
 
     /**
@@ -271,15 +235,6 @@ _ccsg.Sprite = _ccsg.Node.extend({
     initWithSpriteFrameName:function () {
         cc.warnID(2608);
         return;
-    },
-
-    /**
-     * Tell the sprite to use batch node render.
-     * @param {cc.SpriteBatchNode} batchNode
-     */
-    useBatchNode:function (batchNode) {
-        this.textureAtlas = batchNode.getTextureAtlas(); // weak ref
-        this._batchNode = batchNode;
     },
 
     /**
@@ -517,7 +472,7 @@ _ccsg.Sprite = _ccsg.Node.extend({
         var tex = cc.textureCache.getTextureForKey(filename);
         if (!tex) {
             tex = cc.textureCache.addImage(filename);
-            return this.initWithTexture(tex, rect || cc.rect(0, 0, tex._contentSize.width, tex._contentSize.height));
+            return this.initWithTexture(tex, rect || cc.rect(0, 0, tex.width, tex.height));
         } else {
             if (!rect) {
                 var size = tex.getContentSize();
@@ -561,7 +516,7 @@ _ccsg.Sprite = _ccsg.Node.extend({
         _t._offsetPosition.x = 0;
         _t._offsetPosition.y = 0;
 
-        var locTextureLoaded = texture.isLoaded();
+        var locTextureLoaded = texture.loaded;
         _t._textureLoaded = locTextureLoaded;
 
         if (!locTextureLoaded) {
@@ -716,7 +671,7 @@ _ccsg.Sprite = _ccsg.Node.extend({
         if(isFileName)
             texture = cc.textureCache.addImage(texture);
 
-        if(texture._textureLoaded){
+        if(texture.loaded){
             this._setTexture(texture, isFileName);
             this.setColor(this._realColor);
             this._textureLoaded = true;
@@ -738,12 +693,8 @@ _ccsg.Sprite = _ccsg.Node.extend({
             this._changeRectWithTexture(texture);
     },
 
-    _changeRectWithTexture: function(texture){
-        var contentSize = texture._contentSize;
-        var rect = cc.rect(
-                0, 0,
-                contentSize.width, contentSize.height
-            );
+    _changeRectWithTexture: function(texture) {
+        var rect = cc.rect(0, 0, texture.width, texture.height);
         this.setTextureRect(rect);
     },
 
@@ -757,7 +708,13 @@ _ccsg.Sprite = _ccsg.Node.extend({
 
 cc.js.addon(_ccsg.Sprite.prototype, EventTarget.prototype);
 
-
-cc.assertID(typeof cc._tmp.PrototypeSprite === 'function', 3200, "SpritesPropertyDefine.js");
-cc._tmp.PrototypeSprite();
-delete cc._tmp.PrototypeSprite;
+var SameNameGetSets = ['opacity', 'color', 'texture', 'quad'];
+var DiffNameGetSets = {
+    opacityModifyRGB: ['isOpacityModifyRGB', 'setOpacityModifyRGB'],
+    flippedX: ['isFlippedX', 'setFlippedX'],
+    flippedY: ['isFlippedY', 'setFlippedY'],
+    offsetX: ['_getOffsetX'],
+    offsetY: ['_getOffsetY'],
+    textureRectRotated: ['isTextureRectRotated'],
+};
+Misc.propertyDefine(_ccsg.Sprite, SameNameGetSets, DiffNameGetSets);
