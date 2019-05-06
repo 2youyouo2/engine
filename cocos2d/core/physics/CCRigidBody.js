@@ -24,13 +24,11 @@
  THE SOFTWARE.
  ****************************************************************************/
 
-const NodeEvent = require('../CCNode').EventType;
-var PTM_RATIO = require('./CCPhysicsTypes').PTM_RATIO;
-var ANGLE_TO_PHYSICS_ANGLE = require('./CCPhysicsTypes').ANGLE_TO_PHYSICS_ANGLE;
-var PHYSICS_ANGLE_TO_ANGLE = require('./CCPhysicsTypes').PHYSICS_ANGLE_TO_ANGLE;
+import { EventType as NodeEvent, _LocalDirtyFlag } from '../CCNode';
+import { ANGLE_TO_PHYSICS_ANGLE, PHYSICS_ANGLE_TO_ANGLE, BodyType, PTM_RATIO } from './CCPhysicsTypes';
+import { getWorldRotation, getWorldScale, getLocalRotation, getWorldRTS, setWorldRT } from './utils';
 
-var getWorldRotation = require('./utils').getWorldRotation;
-var BodyType = require('./CCPhysicsTypes').BodyType;
+const { vec2 } = require('../vmath');
 
 var tempb2Vec21 = new b2.Vec2();
 var tempb2Vec22 = new b2.Vec2();
@@ -44,6 +42,14 @@ var VEC2_ZERO = cc.Vec2.ZERO;
 var RigidBody = cc.Class({
     name: 'cc.RigidBody',
     extends: cc.Component,
+
+    ctor () {
+        this._rts = {
+            position: cc.v2(),
+            rotation: 0,
+            scale: cc.v2()
+        };
+    },
 
     editor: CC_EDITOR && {
         menu: 'i18n:MAIN_MENU.component.physics/Rigid Body',
@@ -809,7 +815,13 @@ var RigidBody = cc.Class({
         var b2body = this._b2Body;
         if (!b2body) return;
 
-        var rotation = ANGLE_TO_PHYSICS_ANGLE * getWorldRotation(this.node);
+        var rotation = Math.abs(ANGLE_TO_PHYSICS_ANGLE) * getWorldRotation(this.node);
+
+        // var scale = this._rts.scale;
+        // if (scale.x * scale.y < 0) {
+        //     rotation *= -1;
+        // }
+
         if (this.type === BodyType.Animated && enableAnimated) {
             var b2Rotation = b2body.GetAngle();
             var timeStep = cc.game.config['frameRate'];
@@ -840,38 +852,136 @@ var RigidBody = cc.Class({
         this._destroy();
     },
 
+    _updateRTSFromNode () {
+        // let node = this.node;
+        // let rts = this._rts;
+        // rts.scale = getWorldScale(node, rts.scale);
+        // rts.position = vec2.transformMat4(rts.position, VEC2_ZERO, node._worldMatrix);
+
+        getWorldRTS(this.node, this._rts);;
+    },
+
+    _syncRTSToBody (enableAnimated) {
+        let b2body = this._b2Body;
+        if (!b2body) return;
+
+        let rts = this._rts;
+
+        // position
+        let pos;
+        if (this.type === BodyType.Animated && enableAnimated) {
+            pos = b2body.GetLinearVelocity();
+        }
+        else {
+            pos = b2body.GetPosition();
+        }
+
+        pos.x = rts.position.x / PTM_RATIO;
+        pos.y = rts.position.y / PTM_RATIO;
+
+        // rotation
+        let rotation = Math.abs(ANGLE_TO_PHYSICS_ANGLE) * rts.rotation;
+
+        if (this.type === BodyType.Animated && enableAnimated) {
+            // position
+            let b2Pos = b2body.GetPosition();
+
+            let timeStep = cc.game.config['frameRate'];
+            pos.x = (pos.x - b2Pos.x)*timeStep;
+            pos.y = (pos.y - b2Pos.y)*timeStep;
+
+            b2body.SetLinearVelocity(pos);
+
+            // rotation
+            let b2Rotation = b2body.GetAngle();
+            b2body.SetAngularVelocity((rotation - b2Rotation)*timeStep);
+        }
+        else {
+            b2body.SetTransformVec(pos, rotation);
+        }
+
+        b2body.SetAwake(true);
+    },
+
+    _updateRTSFromBody () {
+        let b2body = this._b2Body;
+        if (!b2body) return;
+
+        let rts = this._rts;
+
+        let pos = b2body.GetPosition();
+        rts.position.x = pos.x * PTM_RATIO;
+        rts.position.y = pos.y * PTM_RATIO;
+
+        let rotation = b2body.GetAngle() * Math.abs(PHYSICS_ANGLE_TO_ANGLE);
+
+        // let scale = rts.scale;
+        // if (scale.x * scale.y < 0) {
+        //     rotation *= -1;
+        // }
+
+        rts.rotation = rotation;
+    },
+
+    _syncRTSToNode () {
+        let rts = this._rts;
+        let node = this.node;
+
+        let tempMask = node._eventMask;
+        node._eventMask = 0;
+
+        // let rotation = rts.rotation;
+        // let position = rts.position;
+
+        // if (node.parent.parent !== null) {
+        //     node.position = node.parent.convertToNodeSpaceAR( position );
+        //     node.angle = getLocalRotation( node, rotation );
+        // }
+        // else {
+        //     node.position = position;
+        //     node.angle = rotation;
+        // }
+
+        setWorldRT(node, rts);
+
+        node._eventMask = tempMask;
+    },
+
+    _syncNodeToBody () {
+        this._updateRTSFromNode();
+        this._syncRTSToBody();
+    },
+
+    _syncBodyToNode () {
+        this._updateRTSFromBody();
+        this._syncRTSToNode();
+    },
+
     _registerNodeEvents: function () {
         var node = this.node;
-        node.on(NodeEvent.POSITION_CHANGED, this._onNodePositionChanged, this);
-        node.on(NodeEvent.ROTATION_CHANGED, this._onNodeRotationChanged, this);
-        node.on(NodeEvent.SCALE_CHANGED, this._onNodeScaleChanged, this);
+        node.on(NodeEvent.WORLD_TRANSFORM_CHANGED, this._onNodeWorldTransformChanged, this);
     },
 
     _unregisterNodeEvents: function () {
         var node = this.node;
-        node.off(NodeEvent.POSITION_CHANGED, this._onNodePositionChanged, this);
-        node.off(NodeEvent.ROTATION_CHANGED, this._onNodeRotationChanged, this);
-        node.off(NodeEvent.SCALE_CHANGED, this._onNodeScaleChanged, this);
+        node.off(NodeEvent.WORLD_TRANSFORM_CHANGED, this._onNodeWorldTransformChanged, this);
     },
 
-    _onNodePositionChanged: function () {
-        this.syncPosition(true);
-    },
-
-    _onNodeRotationChanged: function (event) {
-        this.syncRotation(true);
-    },
-
-    _onNodeScaleChanged: function (event) {
-        if (this._b2Body) {
-            var colliders = this.getComponents(cc.PhysicsCollider);
-            for (var i = 0; i < colliders.length; i++) {
-                colliders[i].apply();
+    _onNodeWorldTransformChanged (dirtyFlag) {
+        if (!this._b2Body) return;
+        
+        this._updateRTSFromNode();
+        this._syncRTSToBody(true);
+        
+        if (dirtyFlag | _LocalDirtyFlag.SCALE) {
+            let colliders = this.getComponents(cc.PhysicsCollider);
+            for (let i = 0; i < colliders.length; i++) {
+                colliders[i].apply(); 
             }
         }
     },
 
-   _init: function () {
+    _init: function () {
         cc.director.getPhysicsManager().pushDelayEvent(this, '__init', []);
     },
     _destroy: function () {
@@ -880,8 +990,6 @@ var RigidBody = cc.Class({
 
     __init: function () {
         if (this._inited) return;
-
-       this._registerNodeEvents();
 
         var bodyDef = new b2.BodyDef();
         
@@ -905,14 +1013,14 @@ var RigidBody = cc.Class({
         bodyDef.fixedRotation = this.fixedRotation;
         bodyDef.bullet = this.bullet;
 
-        var node = this.node;
-        var pos = node.convertToWorldSpaceAR(VEC2_ZERO);
-        bodyDef.position = new b2.Vec2(pos.x / PTM_RATIO, pos.y / PTM_RATIO);
-        bodyDef.angle = -(Math.PI / 180) * getWorldRotation(node);
-
         bodyDef.awake = this.awakeOnLoad;
 
         cc.director.getPhysicsManager()._addBody(this, bodyDef);
+
+        this.node._updateWorldMatrix();
+        this._syncNodeToBody();
+
+        this._registerNodeEvents();
 
         this._inited = true;
     },

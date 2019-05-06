@@ -23,17 +23,55 @@
  THE SOFTWARE.
  ****************************************************************************/
 
+const VEC2_ZERO = cc.Vec2.ZERO;
+
+const { mat4, mat23, vec2 } = cc.vmath;
+const _mat4_temp = mat4.create();
+const _mat4_temp2 = mat4.create();
+const _vec2_temp = vec2.create();
+
+function getWorldRTS (node, rts) {
+    rts.scale.x = node.scaleX;
+    rts.scale.y = node.scaleY;
+
+    let parent = node.parent;
+    while (!(parent instanceof cc.Scene)) {
+        rts.scale.x *= parent.scaleX;
+        rts.scale.y *= parent.scaleY;
+        parent = parent.parent;
+    }
+
+    let matrix = node._worldMatrix;
+    rts.rotation = Math.atan2(matrix.m01/rts.scale.x, matrix.m00/rts.scale.x) * 180 / Math.PI;
+    rts.position = vec2.transformMat4(rts.position, VEC2_ZERO, matrix);
+}
+
+function setWorldRT (node, rts) {
+    let parentMatrix = node.parent._worldMatrix;
+    mat4.invert(_mat4_temp, parentMatrix);
+
+    // position
+    node.position = vec2.transformMat4(_vec2_temp, rts.position, _mat4_temp);
+
+    // rotation
+    mat4.identity(_mat4_temp2);
+    mat4.rotateZ(_mat4_temp2, _mat4_temp2, rts.rotation * Math.PI / 180);
+
+    mat4.mul(_mat4_temp2, _mat4_temp, _mat4_temp2);
+    node.angle = Math.atan2(_mat4_temp2.m01/rts.scale.x, _mat4_temp2.m00/rts.scale.x) * 180 / Math.PI;
+}
+
 function getWorldRotation (node) {
     var rot = node.angle;
     var parent = node.parent;
-    while(parent.parent){
+    while (parent.parent) {
         rot += parent.angle;
         parent = parent.parent;
     }
-    return -rot;
+    return rot;
 }
 
-function getWorldScale (node) {
+function getWorldScale (node, out) {
     var scaleX = node.scaleX;
     var scaleY = node.scaleY;
 
@@ -45,14 +83,17 @@ function getWorldScale (node) {
         parent = parent.parent;
     }
 
-    return cc.v2(scaleX, scaleY);
+    out = out || cc.v2();
+    out.x = scaleX;
+    out.y = scaleY;
+
+    return out;
 }
 
-function convertToNodeRotation (node, rotation) {
-    rotation -= -node.angle;
-    var parent = node.parent;
-    while(parent.parent){
-        rotation -= -parent.angle;
+function getLocalRotation (node, rotation) {
+    let parent = node.parent;
+    while (parent.parent) {
+        rotation -= parent.angle;
         parent = parent.parent;
     }
     return rotation;
@@ -61,5 +102,8 @@ function convertToNodeRotation (node, rotation) {
 module.exports = {
     getWorldRotation: getWorldRotation,
     getWorldScale: getWorldScale,
-    convertToNodeRotation: convertToNodeRotation
+    getLocalRotation: getLocalRotation,
+
+    getWorldRTS,
+    setWorldRT,
 };

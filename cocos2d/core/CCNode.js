@@ -61,6 +61,7 @@ const ROTATION_ON = 1 << 2;
 const SIZE_ON = 1 << 3;
 const ANCHOR_ON = 1 << 4;
 const COLOR_ON = 1 << 5;
+const WORLD_TRANSFORM_ON = 1 << 5;
 
 
 let BuiltinGroupIndex = cc.Enum({
@@ -104,6 +105,8 @@ var LocalDirtyFlag = cc.Enum({
      * @static
      */
     SKEW: 1 << 3,
+    
+    PARENT: 1 << 4,
     /**
      * !#en Flag for position or rotation dirty
      * !#zh 旋转或位置 dirty 的标记位
@@ -260,6 +263,10 @@ var EventType = cc.Enum({
     * @static
     */
     COLOR_CHANGED: 'color-changed',
+    /**
+     * 
+     */
+    WORLD_TRANSFORM_CHANGED: 'world-transform-changed',
     /**
      * !#en The event type for new child added events.
      * !#zh 当新的子节点被添加时触发的事件。
@@ -641,7 +648,6 @@ let NodeDefines = {
 
                         localPosition.x = value;
                         this.setLocalDirty(LocalDirtyFlag.POSITION);
-                        this._renderFlag |= RenderFlow.FLAG_WORLD_TRANSFORM;
                         
                         // fast check event
                         if (this._eventMask & POSITION_ON) {
@@ -684,7 +690,6 @@ let NodeDefines = {
 
                         localPosition.y = value;
                         this.setLocalDirty(LocalDirtyFlag.POSITION);
-                        this._renderFlag |= RenderFlow.FLAG_WORLD_TRANSFORM;
 
                         // fast check event
                         if (this._eventMask & POSITION_ON) {
@@ -743,10 +748,11 @@ let NodeDefines = {
                 return this._eulerAngles.z;
             },
             set (value) {
+                if (this._eulerAngles.z === value) return;
+
                 vec3.set(this._eulerAngles, 0, 0, value);
                 this._fromEuler();
                 this.setLocalDirty(LocalDirtyFlag.ROTATION);
-                this._renderFlag |= RenderFlow.FLAG_TRANSFORM;
 
                 if (this._eventMask & ROTATION_ON) {
                     this.emit(EventType.ROTATION_CHANGED);
@@ -786,7 +792,6 @@ let NodeDefines = {
                         quat.fromEuler(this._quat, value, this._eulerAngles.y, 0);
                     }
                     this.setLocalDirty(LocalDirtyFlag.ROTATION);
-                    this._renderFlag |= RenderFlow.FLAG_TRANSFORM;
 
                     if (this._eventMask & ROTATION_ON) {
                         this.emit(EventType.ROTATION_CHANGED);
@@ -820,7 +825,6 @@ let NodeDefines = {
                         quat.fromEuler(this._quat, this._eulerAngles.x, value, 0);
                     }
                     this.setLocalDirty(LocalDirtyFlag.ROTATION);
-                    this._renderFlag |= RenderFlow.FLAG_TRANSFORM;
 
                     if (this._eventMask & ROTATION_ON) {
                         this.emit(EventType.ROTATION_CHANGED);
@@ -863,7 +867,6 @@ let NodeDefines = {
                 if (this._scale.x !== value) {
                     this._scale.x = value;
                     this.setLocalDirty(LocalDirtyFlag.SCALE);
-                    this._renderFlag |= RenderFlow.FLAG_TRANSFORM;
 
                     if (this._eventMask & SCALE_ON) {
                         this.emit(EventType.SCALE_CHANGED);
@@ -889,7 +892,6 @@ let NodeDefines = {
                 if (this._scale.y !== value) {
                     this._scale.y = value;
                     this.setLocalDirty(LocalDirtyFlag.SCALE);
-                    this._renderFlag |= RenderFlow.FLAG_TRANSFORM;
 
                     if (this._eventMask & SCALE_ON) {
                         this.emit(EventType.SCALE_CHANGED);
@@ -921,7 +923,6 @@ let NodeDefines = {
             set (value) {
                 this._skewX = value;
                 this.setLocalDirty(LocalDirtyFlag.SKEW);
-                this._renderFlag |= RenderFlow.FLAG_TRANSFORM;
             }
         },
 
@@ -941,7 +942,6 @@ let NodeDefines = {
             set (value) {
                 this._skewY = value;
                 this.setLocalDirty(LocalDirtyFlag.SKEW);
-                this._renderFlag |= RenderFlow.FLAG_TRANSFORM;
             }
         },
 
@@ -1163,7 +1163,7 @@ let NodeDefines = {
         this._matrix = mathPools.mat4.get();
         this._worldMatrix = mathPools.mat4.get();
         this._localMatDirty = LocalDirtyFlag.ALL;
-        this._worldMatDirty = true;
+        this._worldMatDirty = LocalDirtyFlag.ALL;
 
         this._eventMask = 0;
         this._cullingMask = 1;
@@ -1525,6 +1525,8 @@ let NodeDefines = {
                 break;
                 case EventType.COLOR_CHANGED:
                 this._eventMask |= COLOR_ON;
+                case EventType.WORLD_TRANSFORM_CHANGED:
+                this._eventMask |= WORLD_TRANSFORM_ON;
                 break;
             }
             if (!this._bubblingListeners) {
@@ -1669,6 +1671,8 @@ let NodeDefines = {
                     break;
                     case EventType.COLOR_CHANGED:
                     this._eventMask &= ~COLOR_ON;
+                    case EventType.WORLD_TRANSFORM_CHANGED:
+                    this._eventMask &= ~WORLD_TRANSFORM_ON;
                     break;
                 }
             }
@@ -1730,6 +1734,9 @@ let NodeDefines = {
             }
             if ((this._eventMask & COLOR_ON) && !listeners.hasEventListener(EventType.COLOR_CHANGED)) {
                 this._eventMask &= ~COLOR_ON;
+            }
+            if ((this._eventMask & WORLD_TRANSFORM_ON) && !listeners.hasEventListener(EventType.WORLD_TRANSFORM_CHANGED)) {
+                this._eventMask &= ~WORLD_TRANSFORM_ON;
             }
         }
         if (this._capturingListeners) {
@@ -2129,7 +2136,6 @@ let NodeDefines = {
             return cc.error(ERR_INVALID_NUMBER, 'y of new position');
         }
         this.setLocalDirty(LocalDirtyFlag.POSITION);
-        this._renderFlag |= RenderFlow.FLAG_WORLD_TRANSFORM;
 
         // fast check event
         if (this._eventMask & POSITION_ON) {
@@ -2192,7 +2198,6 @@ let NodeDefines = {
             this._scale.x = x;
             this._scale.y = y;
             this.setLocalDirty(LocalDirtyFlag.SCALE);
-            this._renderFlag |= RenderFlow.FLAG_TRANSFORM;
 
             if (this._eventMask & SCALE_ON) {
                 this.emit(EventType.SCALE_CHANGED);
@@ -2250,7 +2255,6 @@ let NodeDefines = {
                 old.z = z;
                 old.w = w;
                 this.setLocalDirty(LocalDirtyFlag.ROTATION);
-                this._renderFlag |= RenderFlow.FLAG_TRANSFORM;
 
                 if (this._eventMask & ROTATION_ON) {
                     this.emit(EventType.ROTATION_CHANGED);
@@ -2630,8 +2634,6 @@ let NodeDefines = {
         t.m13 = this._position.y;
         
         this._localMatDirty = 0;
-        // Register dirty status of world matrix so that it can be recalculated
-        this._worldMatDirty = true;
     },
 
     _calculWorldMatrix () {
@@ -2648,7 +2650,7 @@ let NodeDefines = {
         else {
             mat4.copy(this._worldMatrix, this._matrix);
         }
-        this._worldMatDirty = false;
+        this._worldMatDirty = 0;
     },
 
     _mulMat (out, a, b) {
@@ -2676,23 +2678,28 @@ let NodeDefines = {
         if (this._parent) {
             this._parent._updateWorldMatrix();
         }
-        if (this._worldMatDirty) {
+
+        let worldDirtyFlag = this._worldMatDirty;
+        if (worldDirtyFlag) {
             this._calculWorldMatrix();
+            
+            if (this._eventMask & WORLD_TRANSFORM_ON) {
+                this.emit(EventType.WORLD_TRANSFORM_CHANGED, worldDirtyFlag);
+            }
+
             // Sync dirty to children
             let children = this._children;
             for (let i = 0, l = children.length; i < l; i++) {
-                children[i]._worldMatDirty = true;
+                children[i]._worldMatDirty |= worldDirtyFlag | LocalDirtyFlag.PARENT;
             }
         }
     },
 
     setLocalDirty (flag) {
-        this._localMatDirty = this._localMatDirty | flag;
-        this._worldMatDirty = true;
-    },
+        this._localMatDirty |= flag;
+        this._worldMatDirty |= flag;
 
-    setWorldDirty () {
-        this._worldMatDirty = true;
+        this._renderFlag |= RenderFlow.FLAG_TRANSFORM;
     },
 
     /**
@@ -3181,7 +3188,7 @@ let NodeDefines = {
         }
 
         this._localMatDirty = LocalDirtyFlag.ALL;
-        this._worldMatDirty = true;
+        this._worldMatDirty = LocalDirtyFlag.ALL;
 
         this._toEuler();
 

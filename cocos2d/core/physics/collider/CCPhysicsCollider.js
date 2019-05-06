@@ -25,7 +25,6 @@
  ****************************************************************************/
  
 var PTM_RATIO = require('../CCPhysicsTypes').PTM_RATIO;
-var getWorldScale = require('../utils').getWorldScale;
 
 /**
  * @class PhysicsCollider
@@ -166,9 +165,7 @@ var PhysicsCollider = cc.Class({
         if (!innerBody) return;
 
         var node = body.node;
-        var scale = getWorldScale(node);
-        this._scale = scale;
-
+        var scale = body._rts.scale;
         var shapes = scale.x === 0 && scale.y === 0 ? [] : this._createShape(scale);
 
         if (!(shapes instanceof Array)) {

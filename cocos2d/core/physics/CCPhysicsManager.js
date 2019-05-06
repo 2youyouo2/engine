@@ -24,17 +24,8 @@
  THE SOFTWARE.
  ****************************************************************************/
 
-const PhysicsTypes = require('./CCPhysicsTypes');
-const ContactType = PhysicsTypes.ContactType;
-const BodyType = PhysicsTypes.BodyType;
-const RayCastType = PhysicsTypes.RayCastType;
-const DrawBits = PhysicsTypes.DrawBits;
-
-const PTM_RATIO = PhysicsTypes.PTM_RATIO;
-const ANGLE_TO_PHYSICS_ANGLE = PhysicsTypes.ANGLE_TO_PHYSICS_ANGLE;
-const PHYSICS_ANGLE_TO_ANGLE = PhysicsTypes.PHYSICS_ANGLE_TO_ANGLE;
-
-const convertToNodeRotation = require('./utils').convertToNodeRotation;
+const { ContactType, BodyType, RayCastType, DrawBits, PTM_RATIO, PHYSICS_ANGLE_TO_ANGLE } = require('./CCPhysicsTypes');
+const { setWorldRotation, getWorldScale} = require('./utils');
 const DebugDraw = require('./platform/CCPhysicsDebugDraw');
 
 var b2_aabb_tmp = new b2.AABB();
@@ -167,21 +158,26 @@ var PhysicsManager = cc.Class({
     },
 
     update: function (dt) {
-        var world = this._world;
+        let world = this._world;
         if (!world || !this.enabled) return;
 
         this.emit('before-step');
         
+        let bodies = this._bodies;
+        for (let i = 0, l = bodies.length; i < l; i++) {
+            bodies[i].node._updateWorldMatrix();
+        }
+
         this._steping = true;
 
-        var velocityIterations = PhysicsManager.VELOCITY_ITERATIONS;
-        var positionIterations = PhysicsManager.POSITION_ITERATIONS;
+        let velocityIterations = PhysicsManager.VELOCITY_ITERATIONS;
+        let positionIterations = PhysicsManager.POSITION_ITERATIONS;
 
         if (this.enabledAccumulator) {
             this._accumulator += dt;
 
-            var FIXED_TIME_STEP = PhysicsManager.FIXED_TIME_STEP;
-            var MAX_ACCUMULATOR = PhysicsManager.MAX_ACCUMULATOR;
+            let FIXED_TIME_STEP = PhysicsManager.FIXED_TIME_STEP;
+            let MAX_ACCUMULATOR = PhysicsManager.MAX_ACCUMULATOR;
 
             // max accumulator time to avoid spiral of death
             if (this._accumulator > MAX_ACCUMULATOR) {
@@ -194,7 +190,7 @@ var PhysicsManager = cc.Class({
             }
         }
         else {
-            var timeStep = 1/cc.game.config['frameRate'];
+            let timeStep = 1/cc.game.config['frameRate'];
             world.Step(timeStep, velocityIterations, positionIterations);
         }
 
@@ -206,9 +202,9 @@ var PhysicsManager = cc.Class({
 
         this._steping = false;
 
-        var events = this._delayEvents;
-        for (var i = 0, l = events.length; i < l; i++) {
-            var event = events[i];
+        let events = this._delayEvents;
+        for (let i = 0, l = events.length; i < l; i++) {
+            let event = events[i];
             event.target[event.func].apply(event.target, event.args);
         }
         events.length = 0;
@@ -346,19 +342,6 @@ var PhysicsManager = cc.Class({
         return [];
     },
  
-    syncPosition: function () {
-        var bodies = this._bodies;
-        for (var i = 0; i < bodies.length; i++) {
-            bodies[i].syncPosition();
-        }
-    },
-    syncRotation: function () {
-        var bodies = this._bodies;
-        for (var i = 0; i < bodies.length; i++) {
-            bodies[i].syncRotation();
-        }
-    },    
-
     _registerContactFixture: function (fixture) {
         this._contactListener.registerContactFixture(fixture);
     },
@@ -446,32 +429,8 @@ var PhysicsManager = cc.Class({
         var bodies = this._bodies;
         for (var i = 0, l = bodies.length; i < l; i++) {
             var body = bodies[i];
-            var node = body.node;
 
-            var b2body = body._b2Body;
-            var pos = b2body.GetPosition();
-
-            vec2_tmp.x = pos.x * PTM_RATIO;
-            vec2_tmp.y = pos.y * PTM_RATIO;
-
-            var angle = b2body.GetAngle() * PHYSICS_ANGLE_TO_ANGLE;
-
-            // When node's parent is not scene, convert position and rotation.
-            if (node.parent.parent !== null) {
-                vec2_tmp = node.parent.convertToNodeSpaceAR( vec2_tmp );
-                angle = convertToNodeRotation( node.parent, angle );
-            }
-
-            let tempMask = node._eventMask;
-            node._eventMask = 0;
-
-            // sync position
-            node.position = vec2_tmp;
-
-            // sync rotation
-            node.angle = -angle;
-
-            node._eventMask = tempMask;
+            body._syncBodyToNode();
             
             if (body.type === BodyType.Animated) {
                 body.resetVelocity();

@@ -59,8 +59,6 @@ function _updateLocalMatrix3d () {
             t.m05 = d + b * skx;
         }
         this._localMatDirty = 0;
-        // Register dirty status of world matrix so that it can be recalculated
-        this._worldMatDirty = true;
     }
 }
 
@@ -77,7 +75,7 @@ function _calculWorldMatrix3d () {
     else {
         mat4.copy(this._worldMatrix, this._matrix);
     }
-    this._worldMatDirty = false;
+    this._worldMatDirty = 0;
 }
 
 
@@ -106,7 +104,6 @@ function setPosition (newPosOrX, y, z) {
     pos.y = y;
     pos.z = z;
     this.setLocalDirty(DirtyFlag.POSITION);
-    this._renderFlag |= RenderFlow.FLAG_WORLD_TRANSFORM;
 
     // fast check event
     if (this._eventMask & POSITION_ON) {
@@ -137,7 +134,6 @@ function setScale (x, y, z) {
         this._scale.y = y;
         this._scale.z = z;
         this.setLocalDirty(DirtyFlag.SCALE);
-        this._renderFlag |= RenderFlow.FLAG_TRANSFORM;
 
         if (this._eventMask & SCALE_ON) {
             this.emit(EventType.SCALE_CHANGED);
@@ -200,7 +196,6 @@ cc.js.getset(proto, 'scaleZ', function () {
     if (this._scale.z !== v) {
         this._scale.z = v;
         this.setLocalDirty(DirtyFlag.SCALE);
-        this._renderFlag |= RenderFlow.FLAG_TRANSFORM;
 
         if (this._eventMask & SCALE_ON) {
             this.emit(EventType.SCALE_CHANGED);
@@ -216,7 +211,6 @@ cc.js.getset(proto, 'z', function () {
         if (!CC_EDITOR || isFinite(value)) {
             localPosition.z = value;
             this.setLocalDirty(DirtyFlag.POSITION);
-            this._renderFlag |= RenderFlow.FLAG_WORLD_TRANSFORM;
             // fast check event
             if (this._eventMask & POSITION_ON) {
                 this.emit(EventType.POSITION_CHANGED);
@@ -242,7 +236,6 @@ cc.js.getset(proto, 'eulerAngles', function () {
 
     this._quat.fromEuler(v);
     this.setLocalDirty(DirtyFlag.ROTATION);
-    this._renderFlag |= RenderFlow.FLAG_TRANSFORM;
 });
 
 // This property is used for Mesh Skeleton Animation

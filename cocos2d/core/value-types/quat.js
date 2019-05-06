@@ -58,7 +58,7 @@ function Quat (x, y, z, w) {
     this.x = x || 0;
     this.y = y || 0;
     this.z = z || 0;
-    this.w = w || 1;
+    this.w = typeof w === 'number' ? w : 1;
 }
 js.extend(Quat, ValueType);
 CCClass.fastDefine('cc.Quat', Quat, { x: 0, y: 0, z: 0, w: 1 });
