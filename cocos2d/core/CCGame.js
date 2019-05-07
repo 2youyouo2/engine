@@ -782,7 +782,7 @@ var game = {
         this._determineRenderType();
         // WebGL context created successfully
         if (this.renderType === this.RENDER_TYPE_WEBGL) {
-            var opts = {
+            let opts = {
                 'stencil': true,
                 // MSAA is causing serious performance dropdown on some browsers.
                 'antialias': cc.macro.ENABLE_WEBGL_ANTIALIAS,
@@ -791,19 +791,50 @@ var game = {
             if (CC_WECHATGAME || CC_QQPLAY) {
                 opts['preserveDrawingBuffer'] = true;
             }
-            renderer.initWebGL(localCanvas, opts);
-            this._renderContext = renderer.device._gl;
+
+            let useWebGL2 = (window.WebGL2RenderingContext !== null);
+            const userAgent = navigator.userAgent.toLowerCase();
+            if (userAgent.indexOf('safari') !== -1) {
+                if (userAgent.indexOf('chrome') === -1) {
+                    useWebGL2 = false;
+                }
+            }
             
+            // useWebGL2 = false;
+            if (useWebGL2) {
+                this._gfxDevice = new cc.WebGL2GFXDevice();
+            } else {
+                this._gfxDevice = new cc.WebGLGFXDevice();
+            }
+
+            const nativeWidth = Math.floor(screen.width * window.devicePixelRatio);
+            const nativeHeight = Math.floor(screen.height * window.devicePixelRatio);
+
+            this._gfxDevice.initialize({
+                canvasElm: localCanvas,
+                debug: true,
+                devicePixelRatio: window.devicePixelRatio,
+                nativeWidth,
+                nativeHeight,
+            });
+
             // Enable dynamic atlas manager by default
             if (!cc.macro.CLEANUP_IMAGE_CACHE && dynamicAtlasManager) {
                 dynamicAtlasManager.enabled = true;
             }
         }
-        if (!this._renderContext) {
+
+        if (!this._gfxDevice) {
+            this.renderType = this.RENDER_TYPE_CANVAS;
+            renderer.initCanvas(localCanvas);
+            return;
+        }
+
+        if (!this._gfxDevice) {
             this.renderType = this.RENDER_TYPE_CANVAS;
             // Could be ignored by module settings
             renderer.initCanvas(localCanvas);
-            this._renderContext = renderer.device._ctx;
+            this._gfxDevice = renderer.device._ctx;
         }
 
         this.canvas.oncontextmenu = function () {
