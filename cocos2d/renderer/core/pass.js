@@ -2,10 +2,27 @@
 
 import gfx from '../gfx';
 
+const ELEMENT_COUNT = 27;
+
 export default class Pass {
-  constructor(name) {
+  
+  /**
+   * @param {String} name 
+   * @param {ArrayBuffer} buffer 
+   * @param {Number} byteOffset 
+   * @param {Uint32Array} initData 
+   */
+  constructor(name, buffer, byteOffset, initData) {
     this._programName = name;
 
+    this.__byteOffset = byteOffset;
+    this.__data = new Uint32Array(buffer, byteOffset, ELEMENT_COUNT);
+
+    if (initData) {
+      this.__data.set(initData);
+      return;
+    }
+    
     // cullmode
     this._cullMode = gfx.CULL_BACK;
 
@@ -122,9 +139,58 @@ export default class Pass {
     this._stencilWriteMaskBack = stencilWriteMask;
   }
 
-  clone () {
-    let pass = new Pass(this._programName);
-    Object.assign(pass, this);
+  clone (newBuffer) {
+    let pass = new Pass(this._programName, newBuffer, this.__data.byteOffset, this.__data);
     return pass;
   }
 }
+
+[
+  // cull mode
+  '_cullMode',
+  
+  // blend
+  '_blend',
+  '_blendEq',
+  '_blendAlphaEq',
+  '_blendSrc',
+  '_blendDst',
+  '_blendSrcAlpha',
+  '_blendDstAlpha',
+  '_blendColor',
+
+  // depth
+  '_depthTest',
+  '_depthWrite',
+  '_depthFunc',
+
+  // stencil
+  '_stencilTest',
+  // front
+  '_stencilFuncFront',
+  '_stencilRefFront',
+  '_stencilMaskFront',
+  '_stencilFailOpFront',
+  '_stencilZFailOpFront',
+  '_stencilZPassOpFront',
+  '_stencilWriteMaskFront',
+  // back
+  '_stencilFuncBack',
+  '_stencilRefBack',
+  '_stencilMaskBack',
+  '_stencilFailOpBack',
+  '_stencilZFailOpBack',
+  '_stencilZPassOpBack',
+  '_stencilWriteMaskBack',
+].forEach((name, index) => {
+  cc.js.getset(Pass.prototype, name, 
+    function () {
+      return this.__data[index];
+    },
+    function (v) {
+      this.__data[index] = v;
+    }
+  )
+})
+
+Pass.ELEMENT_COUNT = ELEMENT_COUNT;

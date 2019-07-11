@@ -3,7 +3,7 @@
 import config from '../config';
 import Pass from '../core/pass';
 import Technique from '../core/technique';
-import { getInspectorProps, cloneObjArray, getInstanceCtor } from '../types';
+import { getInspectorProps, cloneObjArray, getInstanceCtor, enums2TypedArray } from '../types';
 import enums from '../enums';
 import gfx from '../gfx';
 
@@ -11,16 +11,16 @@ class Effect {
     /**
      * @param {Array} techniques
      */
-    constructor(name, techniques, properties = {}, defines = {}, dependencies = []) {
+    constructor(name, techniques, properties = {}, defines = {}, dependencies = [], buffer) {
         this._name = name;
         this._techniques = techniques;
         this._properties = properties;
         this._defines = defines;
         this._dependencies = dependencies;
-        // TODO: check if params is valid for current technique???
+        this._buffer = buffer;
     }
 
-    clear() {
+    clear () {
         this._techniques.length = 0;
         this._properties = {};
         this._defines = {};
@@ -126,14 +126,23 @@ class Effect {
             }
         }
         else {
-            if (value instanceof cc.Texture2D) {
-                prop.value = value.getImpl();
+            if (prop.type === enums.PARAM_TEXTURE_2D) {
+                if (CC_JSB) {
+                    prop.value[0] = value ? value.getImpl().getHandle() : 0;
+                }
+                else {
+                    prop.value = value ? value.getImpl() : null;
+                }
             }
             else if (value.array) {
                 value.array(prop.value)
             }
+            else if (prop.type === enums.PARAM_FLOAT || prop.type === enums.PARAM_INT) {
+                prop.value[0] = value;
+            }
             else {
                 prop.value = value;
+                cc.warn(`effect.setProperty : unrecognized property value ${name}`);
             }
         }
     }
@@ -180,6 +189,8 @@ class Effect {
     }
 
     clone () {
+        let buffer = new Float32Array(this._buffer);
+
         let defines = this.extractDefines({});
         let dependencies = this.extractDependencies({});
 
@@ -187,31 +198,20 @@ class Effect {
         let properties = this._properties;
         for (let name in properties) {
             let prop = properties[name];
-            let newProp = newProperties[name] = {};
+            let newProp = newProperties[name] = Object.assign({}, prop);
 
-            let value = prop.value;
-            if (Array.isArray(value)) {
-                newProp.value = value.concat();
-            }
-            else if (ArrayBuffer.isView(value)) {
-                newProp.value = new value.__proto__.constructor(value);
-            }
-            else {
-                newProp.value = value;
-            }
-
-            for (let name in prop) {
-                if (name === 'value') continue;
-                newProp[name] = prop[name];
+            if (CC_JSB || prop.type !== enums.PARAM_TEXTURE_2D) {
+                let oldValue = newProp.value;
+                newProp.value = new oldValue.constructor(buffer.buffer, oldValue.byteOffset, oldValue.length);
             }
         }
 
         let techniques = [];
         for (let i = 0; i < this._techniques.length; i++) {
-            techniques.push(this._techniques[i].clone());
+            techniques.push(this._techniques[i].clone(buffer));
         }
 
-        return new cc.Effect(this._name, techniques, newProperties, defines, dependencies);
+        return new cc.Effect(this._name, techniques, newProperties, defines, dependencies, buffer);
     }
 }
 
@@ -229,6 +229,7 @@ let getInvolvedPrograms = function(json) {
 function parseProperties(json, programs) {
     let props = {};
 
+    // TODO: Should parse properties for each passes separately, refer to Cocos Creator 3D.
     let properties = {};
     json.techniques.forEach(tech => {
         tech.passes.forEach(pass => {
@@ -243,18 +244,24 @@ function parseProperties(json, programs) {
             if (uniformInfo) break;
         }
         // the property is not defined in all the shaders used in techs
+        // myabe defined a not used property
         if (!uniformInfo) {
             cc.warn(`${json.name} : illegal property: ${prop}`);
             continue;
         }
-        // TODO: different param with same name for different passes
+
         props[prop] = Object.assign({}, propInfo);
-        props[prop].value = propInfo.type === enums.PARAM_TEXTURE_2D ? null : new Float32Array(propInfo.value);
+        // if (propInfo.type === enums.PARAM_TEXTURE_2D) {
+        //     props[prop].value = CC_JSB ? new Uint32Array([0]) : null;
+        // }
+        // else {
+        //     props[prop].value = propInfo.value;
+        // }
     }
     return props;
 };
 
-Effect.parseTechniques = function (effect) {
+Effect.parseTechniques = function (effect, arrayBuffer, byteOffset) {
     let techNum = effect.techniques.length;
     let techniques = new Array(techNum);
     for (let j = 0; j < techNum; ++j) {
@@ -266,7 +273,7 @@ Effect.parseTechniques = function (effect) {
         let passes = new Array(passNum);
         for (let k = 0; k < passNum; ++k) {
             let pass = tech.passes[k];
-            passes[k] = new Pass(pass.program);
+            passes[k] = new Pass(pass.program, arrayBuffer, byteOffset);
 
             // rasterizer state
             if (pass.rasterizerState) {
@@ -289,6 +296,8 @@ Effect.parseTechniques = function (effect) {
             passes[k].setStencilBack(depthStencilState.stencilTest, depthStencilState.stencilFuncBack, depthStencilState.stencilRefBack, depthStencilState.stencilMaskBack,
                 depthStencilState.stencilFailOpBack, depthStencilState.stencilZFailOpBack, depthStencilState.stencilZPassOpBack, depthStencilState.stencilWriteMaskBack);
             }
+
+            byteOffset += Pass.ELEMENT_COUNT * 4;
         }
         techniques[j] = new Technique(tech.stages, passes, tech.layer);
     }
@@ -296,31 +305,71 @@ Effect.parseTechniques = function (effect) {
     return techniques;
 };
 
-Effect.parseEffect = function (effect) {
-    let techniques = Effect.parseTechniques(effect);
+Effect.parseEffect = function (asset) {
+    let totalArrayCount = 0;
+
+    // calculate pass array count
+    for (let i = 0; i < asset.techniques.length; i++) {
+        let passes = asset.techniques[i].passes;
+        totalArrayCount += passes.length * Pass.ELEMENT_COUNT;
+    }
     
-    let programs = getInvolvedPrograms(effect);
-    let props = parseProperties(effect, programs), uniforms = {}, defines = {};
+    // calculate uniform array count and offset
+    let uniforms = {}, defines = {};
+
+    let programs = getInvolvedPrograms(asset);
     programs.forEach(p => {
         // uniforms
         p.uniforms.forEach(u => {
-            let name = u.name, uniform = uniforms[name] = Object.assign({}, u);
-            uniform.value = getInstanceCtor(u.type)(u.value);
-            if (props[name]) { // effect info override
-                uniform.type = props[name].type;
-                uniform.value = props[name].value;
-            }
+            let uniform = uniforms[u.name] = Object.assign({}, u);
+
+            let defaultArray = enums2TypedArray[u.type];
+            uniform.value = defaultArray;
+
+            uniform.byteOffset = totalArrayCount * 4;
+            totalArrayCount += defaultArray.length;
         });
 
         p.defines.forEach(d => {
             defines[d.name] = getInstanceCtor(d.type)();
         })
     });
+
+    // init total typed array buffer
+    let buffer = new Float32Array(totalArrayCount);
+
+    // parse technique
+    let techniques = Effect.parseTechniques(asset, buffer.buffer, 0);
+
+    let props = parseProperties(asset, programs);
+    for (let name in uniforms) {
+        let uniform = uniforms[name];
+        var oldValue = uniform.value;
+        if (uniform.type === enums.PARAM_TEXTURE_2D) {
+            if (!CC_JSB) {
+                uniform.value = null;
+            }
+            else {
+                uniform.value = new Uint32Array(buffer.buffer, uniform.byteOffset, oldValue.length);
+                uniform.value[0] = 0;
+            }
+        }
+        else {
+            uniform.value = new Float32Array(buffer.buffer, uniform.byteOffset, oldValue.length);
+            if (props[name]) {
+                uniform.value.set(props[name].value);
+            }
+            else {
+                uniform.value.set(oldValue);
+            }
+        }
+    }
+
     // extensions
     let extensions = programs.reduce((acc, cur) => acc = acc.concat(cur.extensions), []);
     extensions = cloneObjArray(extensions);
 
-    return new cc.Effect(effect.name, techniques, uniforms, defines, extensions, effect);
+    return new cc.Effect(asset.name, techniques, uniforms, defines, extensions, buffer);
 };
 
 if (CC_EDITOR) {

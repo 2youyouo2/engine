@@ -31,10 +31,10 @@ export default class Technique {
     return this._stageIDs;
   }
 
-  clone () {
+  clone (newBuffer) {
     let passes = [];
     for (let i = 0; i < this._passes.length; i++) {
-      passes.push(this._passes[i].clone());
+      passes.push(this._passes[i].clone(newBuffer));
     }
     return new Technique(this._stages, passes, this._layer);
   }

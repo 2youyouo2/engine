@@ -89,7 +89,12 @@ function serializeUniforms (uniforms) {
                 break;
             case enums.PARAM_TEXTURE_2D:
             case enums.PARAM_TEXTURE_CUBE:
-                hashData += prop._id + ';';
+                if (CC_JSB) {
+                    hashData += prop[0] + ';';
+                }
+                else {
+                    hashData += prop._id + ';';
+                }
                 break;
             case enums.PARAM_INT3:
             case enums.PARAM_FLOAT3:

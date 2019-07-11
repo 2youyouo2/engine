@@ -1,7 +1,8 @@
-import { ctor2enums } from '../../../renderer/types';
+import { ctor2enums, enums2TypedArray } from '../../../renderer/types';
 import murmurhash2 from './murmurhash2_gc';
 import utils from './utils';
 import effect from '../../../renderer/core/effect';
+import enums from '../../../renderer/enums';
 
 export default class CustomProperties {
     constructor () {
@@ -17,6 +18,7 @@ export default class CustomProperties {
             uniform.name = name;
             uniform.type = ctor2enums[value.constructor];
             uniform.directly = directly;
+            
             this._properties[name] = uniform;
         }
         else if (uniform.value === value) return;
@@ -24,7 +26,24 @@ export default class CustomProperties {
         this._dirty = true;
         uniform.directly = directly;
 
-        effect.prototype.setProperty.call(this, name, value);
+        if (directly || ArrayBuffer.isView(value)) {
+            uniform.value = value;
+        }
+        else if (uniform.type === enums.PARAM_TEXTURE_2D) {
+            if (CC_JSB) {
+                uniform.value = [value.getImpl().getHandle()];
+            }
+            else {
+                uniform.value = value.getImpl();
+            }
+        }
+        else {
+            if (!Array.isArray(value)) {
+                value = [value];
+            }
+            
+            uniform.value = new Float32Array(value);
+        }
     }
 
     getProperty(name) {

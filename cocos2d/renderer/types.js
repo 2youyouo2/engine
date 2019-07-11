@@ -29,6 +29,18 @@ let ctor2default = {
     [CCObject]: () => null
 };
 
+export let enums2TypedArray = {
+    [enums.PARAM_INT]: [0],
+    [enums.PARAM_INT2]: [0, 0],
+    [enums.PARAM_INT3]: [0, 0, 0],
+    [enums.PARAM_INT4]: [0, 0, 0, 0],
+    [enums.PARAM_FLOAT]: [0],
+    [enums.PARAM_FLOAT2]: [0, 0],
+    [enums.PARAM_FLOAT3]: [0, 0, 0],
+    [enums.PARAM_FLOAT4]: [0, 0, 0, 0],
+    [enums.PARAM_MAT4]: cc.mat4().m,
+    [enums.PARAM_TEXTURE_2D]: [0],
+}
 
 let enums2ctor = {
     [enums.PARAM_INT]: Number,
