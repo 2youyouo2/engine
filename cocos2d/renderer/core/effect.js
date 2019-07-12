@@ -251,12 +251,6 @@ function parseProperties(json, programs) {
         }
 
         props[prop] = Object.assign({}, propInfo);
-        // if (propInfo.type === enums.PARAM_TEXTURE_2D) {
-        //     props[prop].value = CC_JSB ? new Uint32Array([0]) : null;
-        // }
-        // else {
-        //     props[prop].value = propInfo.value;
-        // }
     }
     return props;
 };
