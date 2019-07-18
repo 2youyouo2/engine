@@ -1,5 +1,5 @@
-import { ctor2enums, enums2TypedArray } from '../../../renderer/types';
-import murmurhash2 from './murmurhash2_gc';
+import { ctor2enums } from '../../../renderer/types';
+import murmurhash2 from '../../../renderer/murmurhash2_gc';
 import utils from './utils';
 import effect from '../../../renderer/core/effect';
 import enums from '../../../renderer/enums';
@@ -11,12 +11,12 @@ export default class CustomProperties {
         this._dirty = false;
     }
 
-    setProperty (name, value, directly) {
+    setProperty (name, value, type, directly) {
         let uniform = this._properties[name];
         if (!uniform) {
             uniform = Object.create(null);
             uniform.name = name;
-            uniform.type = ctor2enums[value.constructor];
+            uniform.type = type || ctor2enums[value.constructor];
             uniform.directly = directly;
             
             this._properties[name] = uniform;
@@ -85,3 +85,4 @@ export default class CustomProperties {
 }
 
 cc.CustomProperties = CustomProperties;
+cc.CustomProperties.ctor2enums = ctor2enums;

@@ -161,10 +161,11 @@ var LocalDirtyFlag = cc.Enum({
 /**
  * !#en The event type supported by Node
  * !#zh Node 支持的事件类型
- * @enum Node.EventType
+ * @class Node.EventType
  * @static
  * @namespace Node
  */
+// Why EventType defined as class, because the first parameter of Node.on method needs set as 'string' type.
 var EventType = cc.Enum({
     /**
      * !#en The event type for touch start event, you can use its value directly: 'touchstart'
@@ -777,9 +778,15 @@ let NodeDefines = {
          */
         rotation: {
             get () {
+                if (CC_DEBUG) {
+                    cc.warn("`cc.Node.rotation` is deprecated since v2.1.0, please use `-angle` instead. (`this.node.rotation` -> `-this.node.angle`)");
+                }
                 return -this.angle;
             },
             set (value) {
+                if (CC_DEBUG) {
+                    cc.warn("`cc.Node.rotation` is deprecated since v2.1.0, please set `-angle` instead. (`this.node.rotation = x` -> `this.node.angle = -x`)");
+                }
                 this.angle = -value;
             }
         },
@@ -808,10 +815,14 @@ let NodeDefines = {
         },
 
         /**
-         * !#en The rotation as Euler angles in degrees, used in 3D project.
-         * !#zh 该节点的欧拉角度，用于 3D 项目。
+         * !#en The rotation as Euler angles in degrees, used in 3D node.
+         * !#zh 该节点的欧拉角度，用于 3D 节点。
          * @property eulerAngles
          * @type {Vec3}
+         * @example
+         * node.is3DNode = true;
+         * node.eulerAngles = cc.v3(45, 45, 45);
+         * cc.log("Node eulerAngles (X, Y, Z): " + node.eulerAngles.toString());
          */
 
         /**
@@ -819,21 +830,28 @@ let NodeDefines = {
          * !#zh 该节点 X 轴旋转角度。
          * @property rotationX
          * @type {Number}
-         * @example
          * @deprecated since v2.1
-         * node.rotationX = 45;
-         * cc.log("Node Rotation X: " + node.rotationX);
+         * @example
+         * node.is3DNode = true;
+         * node.eulerAngles = cc.v3(45, 0, 0);
+         * cc.log("Node eulerAngles X: " + node.eulerAngles.x);
          */
         rotationX: {
             get () {
+                if (CC_DEBUG) {
+                    cc.warn("`cc.Node.rotationX` is deprecated since v2.1.0, please use `eulerAngles.x` instead. (`this.node.rotationX` -> `this.node.eulerAngles.x`)");
+                }
                 return this._eulerAngles.x;
             },
             set (value) {
+                if (CC_DEBUG) {
+                    cc.warn("`cc.Node.rotationX` is deprecated since v2.1.0, please set `eulerAngles` instead. (`this.node.rotationX = x` -> `this.node.is3DNode = true; this.node.eulerAngles = cc.v3(x, 0, 0)`");
+                }
                 if (this._eulerAngles.x !== value) {
                     this._eulerAngles.x = value;
                     // Update quaternion from rotation
                     if (this._eulerAngles.x === this._eulerAngles.y) {
-                        quat.fromEuler(_quata, 0, 0, -value);
+                        quat.fromAngleZ(_quata, -value);
                     }
                     else {
                         quat.fromEuler(_quata, value, this._eulerAngles.y, 0);
@@ -853,21 +871,28 @@ let NodeDefines = {
          * !#zh 该节点 Y 轴旋转角度。
          * @property rotationY
          * @type {Number}
-         * @example
          * @deprecated since v2.1
-         * node.rotationY = 45;
-         * cc.log("Node Rotation Y: " + node.rotationY);
+         * @example
+         * node.is3DNode = true;
+         * node.eulerAngles = cc.v3(0, 45, 0);
+         * cc.log("Node eulerAngles Y: " + node.eulerAngles.y);
          */
         rotationY: {
             get () {
+                if (CC_DEBUG) {
+                    cc.warn("`cc.Node.rotationY` is deprecated since v2.1.0, please use `eulerAngles.y` instead. (`this.node.rotationY` -> `this.node.eulerAngles.y`)");
+                }
                 return this._eulerAngles.y;
             },
             set (value) {
+                if (CC_DEBUG) {
+                    cc.warn("`cc.Node.rotationY` is deprecated since v2.1.0, please set `eulerAngles` instead. (`this.node.rotationY = y` -> `this.node.is3DNode = true; this.node.eulerAngles = cc.v3(0, y, 0)`");
+                }
                 if (this._eulerAngles.y !== value) {
                     this._eulerAngles.y = value;
                     // Update quaternion from rotation
                     if (this._eulerAngles.x === this._eulerAngles.y) {
-                        quat.fromEuler(_quata, 0, 0, -value);
+                        quat.fromAngleZ(_quata, -value);
                     }
                     else {
                         quat.fromEuler(_quata, this._eulerAngles.x, value, 0);
@@ -1190,6 +1215,10 @@ let NodeDefines = {
                         this._onSiblingIndexChanged();
                     }
                 }
+
+                if (CC_JSB && CC_NATIVERENDERER) {
+                    this._proxy.updateZOrder();
+                }
             }
         },
     },
@@ -1218,6 +1247,8 @@ let NodeDefines = {
         this._eventMask = 0;
         this._cullingMask = 1;
         this._childArrivalOrder = 1;
+
+        this._quat = cc.quat();
 
         // Proxy
         if (CC_JSB && CC_NATIVERENDERER) {
@@ -1368,16 +1399,16 @@ let NodeDefines = {
         this._worldMatDirty = true;
 
         let trs = this._trs = this._spaceInfo.trs;
-        trs[0] = 0;
-        trs[1] = 0;
-        trs[2] = 0;
-        trs[3] = 0;
-        trs[4] = 0;
-        trs[5] = 0;
-        trs[6] = 0;
-        trs[7] = 1;
-        trs[8] = 1;
-        trs[9] = 1;
+        trs[0] = 0; // position.x
+        trs[1] = 0; // position.y
+        trs[2] = 0; // position.z
+        trs[3] = 0; // rotation.x
+        trs[4] = 0; // rotation.y
+        trs[5] = 0; // rotation.z
+        trs[6] = 1; // rotation.w
+        trs[7] = 1; // scale.x
+        trs[8] = 1; // scale.y
+        trs[9] = 1; // scale.z
     },
 
     _backDataIntoPool () {
@@ -1407,7 +1438,7 @@ let NodeDefines = {
             _quata.toRotation(this._trs);
         }
         else {
-            quat.fromEuler(_quata, 0, 0, this._eulerAngles.z);
+            quat.fromAngleZ(_quata, this._eulerAngles.z);
             _quata.toRotation(this._trs);
         }
     },
@@ -1479,8 +1510,7 @@ let NodeDefines = {
             this._color.a = 255;
         }
 
-        if (CC_JSB && CC_NATIVERENDERER)
-        {
+        if (CC_JSB && CC_NATIVERENDERER) {
             this._renderFlag |= RenderFlow.FLAG_TRANSFORM | RenderFlow.FLAG_OPACITY;
         }
     },
@@ -1523,9 +1553,7 @@ let NodeDefines = {
         }
 
         if (CC_JSB && CC_NATIVERENDERER) {
-            this._proxy.setName(this._name);
-            this._proxy.updateParent();
-            this._proxy.updateOpacity();
+            this._proxy.initNative();
         }
     },
 
@@ -1555,9 +1583,7 @@ let NodeDefines = {
         }
 
         if (CC_JSB && CC_NATIVERENDERER) {
-            this._proxy.setName(this._name);
-            this._proxy.updateParent();
-            this._proxy.updateOpacity();
+            this._proxy.initNative();
         }
     },
 
@@ -1713,7 +1739,6 @@ let NodeDefines = {
      */
     once (type, callback, target, useCapture) {
         let forDispatch = this._checknSetupSysEvent(type);
-        let eventType_hasOnceListener = '__ONCE_FLAG:' + type;
 
         let listeners = null;
         if (forDispatch && useCapture) {
@@ -1723,17 +1748,7 @@ let NodeDefines = {
             listeners = this._bubblingListeners = this._bubblingListeners || new EventTarget();
         }
 
-        let hasOnceListener = listeners.hasEventListener(eventType_hasOnceListener, callback, target);
-        if (!hasOnceListener) {
-            let self = this;
-            let onceWrapper = function (arg1, arg2, arg3, arg4, arg5) {
-                self.off(type, onceWrapper, target);
-                listeners.remove(eventType_hasOnceListener, callback, target);
-                callback.call(this, arg1, arg2, arg3, arg4, arg5);
-            };
-            this.on(type, onceWrapper, target);
-            listeners.add(eventType_hasOnceListener, callback, target);
-        }
+        listeners.once(type, callback, target);
     },
 
     _onDispatch (type, callback, target, useCapture) {
@@ -1757,10 +1772,15 @@ let NodeDefines = {
         }
 
         if ( !listeners.hasEventListener(type, callback, target) ) {
-            listeners.add(type, callback, target);
+            listeners.on(type, callback, target);
 
-            if (target && target.__eventTargets)
-                target.__eventTargets.push(this);
+            if (target) {
+                if (target.__eventTargets) {
+                    target.__eventTargets.push(this);
+                } else if (target.node && target.node.__eventTargets) {
+                    target.node.__eventTargets.push(this);
+                }
+            }
         }
 
         return callback;
@@ -1844,10 +1864,14 @@ let NodeDefines = {
         else {
             var listeners = useCapture ? this._capturingListeners : this._bubblingListeners;
             if (listeners) {
-                listeners.remove(type, callback, target);
+                listeners.off(type, callback, target);
 
-                if (target && target.__eventTargets) {
-                    js.array.fastRemove(target.__eventTargets, this);
+                if (target) {
+                    if (target.__eventTargets) {
+                        js.array.fastRemove(target.__eventTargets, this);
+                    } else if (target.node && target.node.__eventTargets) {
+                        js.array.fastRemove(target.node.__eventTargets, this);
+                    }
                 }
             }
 
@@ -2004,7 +2028,10 @@ let NodeDefines = {
         }
 
         this._updateWorldMatrix();
-        mat4.invert(_mat4_temp, this._worldMatrix);
+        // If scale is 0, it can't be hit.
+        if (!mat4.invert(_mat4_temp, this._worldMatrix)) {
+            return false;
+        }
         vec2.transformMat4(testPt, cameraPt, _mat4_temp);
         testPt.x += this._anchorPoint.x * w;
         testPt.y += this._anchorPoint.y * h;
@@ -2160,7 +2187,7 @@ let NodeDefines = {
      * @method stopActionByTag
      * @param {Number} tag A tag that indicates the action to be removed.
      * @example
-     * node.stopAction(1);
+     * node.stopActionByTag(1);
      */
     stopActionByTag: ActionManagerExist ? function (tag) {
         if (tag === cc.Action.TAG_INVALID) {
@@ -2369,7 +2396,9 @@ let NodeDefines = {
             return out.fromRotation(this._trs);
         }
         else {
-            cc.warnID(1400, 'cc.Node.getRotation', 'cc.Node.angle or cc.Node.getRotation(cc.Quat)');
+            if (CC_DEBUG) {
+                cc.warn("`cc.Node.getRotation()` is deprecated since v2.1.0, please use `-cc.Node.angle` instead. (`this.node.getRotation()` -> `-this.node.angle`)");
+            }
             return -this.angle;
         }
     },
@@ -2385,7 +2414,9 @@ let NodeDefines = {
      */
     setRotation (quat, y, z, w) {
         if (typeof quat === 'number' && y === undefined) {
-            cc.warnID(1400, 'cc.Node.setRotation(Number)', 'cc.Node.angle or cc.Node.setRotation(quat)')
+            if (CC_DEBUG) {
+                cc.warn("`cc.Node.setRotation(degree)` is deprecated since v2.1.0, please set `-cc.Node.angle` instead. (`this.node.setRotation(x)` -> `this.node.angle = -x`)");
+            }
             this.angle = -quat;
         }
         else {

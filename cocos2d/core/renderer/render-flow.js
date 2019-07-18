@@ -38,6 +38,7 @@ _proto._worldTransform = function (node) {
     let tm = t.m;
     tm[12] = trs[0];
     tm[13] = trs[1];
+    tm[14] = trs[2];
 
     node._mulMat(node._worldMatrix, node._parent._worldMatrix, t);
     node._renderFlag &= ~WORLD_TRANSFORM;
@@ -50,7 +51,9 @@ _proto._opacity = function (node) {
     _batcher.parentOpacityDirty++;
 
     let comp = node._renderComponent;
-    if (comp && comp._updateColor) comp._updateColor();
+    if (comp) {
+        comp._updateColor();
+    }
 
     node._renderFlag &= ~OPACITY;
     this._next._func(node);
@@ -67,7 +70,7 @@ _proto._updateRenderData = function (node) {
 
 _proto._render = function (node) {
     let comp = node._renderComponent;
-    _batcher._switchComp(comp, node._cullingMask);
+    comp._checkBacth(_batcher, node._cullingMask);
     comp._assembler.fillBuffers(comp, _batcher);
     this._next._func(node);
 };
@@ -108,7 +111,7 @@ _proto._children = function (node) {
 
 _proto._postRender = function (node) {
     let comp = node._renderComponent;
-    _batcher._switchComp(comp, node._cullingMask);
+    comp._checkBacth(_batcher, node._cullingMask);
     comp._assembler.postFillBuffers(comp, _batcher);
     this._next._func(node);
 };

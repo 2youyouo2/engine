@@ -56,6 +56,11 @@ let RenderComponent = cc.Class({
             type: Material,
         },
 
+        /**
+         * !#en The materials used by this render component.
+         * !#zh 渲染组件使用的材质。
+         * @property {[Material]} sharedMaterials
+         */
         sharedMaterials: {
             get () {
                 return this._materials;
@@ -82,12 +87,7 @@ let RenderComponent = cc.Class({
         this.setVertsDirty(true);
         Assembler.init(this);
 
-        if (CC_JSB) {
-            this._updateColor();
-        }
-        else {
-            this.node._renderFlag |= RenderFlow.FLAG_OPACITY;
-        }
+        this._updateColor();
     },
 
     __preload () {
@@ -104,7 +104,7 @@ let RenderComponent = cc.Class({
         this.node.on(cc.Node.EventType.ANCHOR_CHANGED, this._onNodeSizeDirty, this);
         this.node.on(cc.Node.EventType.COLOR_CHANGED, this._updateColor, this);
 
-        this.node._renderFlag |= RenderFlow.FLAG_RENDER | RenderFlow.FLAG_UPDATE_RENDER_DATA;
+        this.node._renderFlag |= RenderFlow.FLAG_RENDER | RenderFlow.FLAG_UPDATE_RENDER_DATA | RenderFlow.FLAG_OPACITY;
     },
 
     onDisable () {
@@ -184,6 +184,12 @@ let RenderComponent = cc.Class({
         }
     },
 
+    /**
+     * !#en Get the material by index.
+     * !#zh 根据指定索引获取材质
+     * @method getMaterial
+     * @param {Number} index 
+     */
     getMaterial (index) {
         if (index < 0 || index >= this._materials.length) {
             return null;
@@ -200,6 +206,13 @@ let RenderComponent = cc.Class({
         return this._materials[index];
     },
     
+    /**
+     * !#en Set the material by index.
+     * !#zh 根据指定索引设置材质
+     * @method setMaterial
+     * @param {Number} index 
+     * @param {Material} material 
+     */
     setMaterial (index, material) {
         this._materials[index] = material;
         if (material) {
@@ -213,6 +226,20 @@ let RenderComponent = cc.Class({
     _updateColor () {
         if (this._assembler.updateColor) {
             this._assembler.updateColor(this);
+        }
+
+        this.node._renderFlag &= ~RenderFlow.FLAG_OPACITY;
+    },
+
+    _checkBacth (renderer, cullingMask) {
+        let material = this.sharedMaterials[0];
+        if ((material && material.getHash() !== renderer.material.getHash()) || 
+            renderer.cullingMask !== cullingMask) {
+            renderer._flush();
+    
+            renderer.node = material.getDefine('CC_USE_MODEL') ? this.node : renderer._dummyNode;
+            renderer.material = material;
+            renderer.cullingMask = cullingMask;
         }
     }
 });

@@ -124,14 +124,20 @@ let Mesh = cc.Class({
             let vbRange = vertexBundle.data;
             let gfxVFmt = new gfx.VertexFormat(vertexBundle.formats);
             let vbData = new Float32Array(this._buffer, vbRange.offset, vbRange.length / 4);
+            
+            let canBatch = this._canVertexFormatBatch(gfxVFmt);
+
             let meshData = new MeshData();
             meshData.vData = vbData;
             meshData.iData = ibData;
             meshData.vfm = gfxVFmt;
             meshData.offset = vbRange.offset;
+            meshData.canBatch = canBatch;
             this._subDatas.push(meshData);
 
-            if (!(CC_JSB && CC_NATIVERENDERER)) {
+            if (CC_JSB && CC_NATIVERENDERER) {
+                meshData.vDirty = true;
+            } else {
                 let vbBuffer = new gfx.VertexBuffer(
                     renderer.device,
                     gfxVFmt,
@@ -152,7 +158,14 @@ let Mesh = cc.Class({
                 this._subMeshes.push(new InputAssembler(vbBuffer, ibBuffer));
             }
         }
-        
+    },
+
+    _canVertexFormatBatch (format) {
+        let aPosition = format._attr2el[gfx.ATTR_POSITION];
+        let canBatch = !aPosition || 
+            (aPosition.type === gfx.ATTR_TYPE_FLOAT32 && 
+            format._bytes % 4 === 0);
+        return canBatch;
     },
 
     /**
@@ -173,6 +186,7 @@ let Mesh = cc.Class({
         meshData.vData = data;
         meshData.vfm = vertexFormat;
         meshData.vDirty = true;
+        meshData.canBatch = this._canVertexFormatBatch(vertexFormat);
         
         if (!(CC_JSB && CC_NATIVERENDERER)) {
             let vb = new gfx.VertexBuffer(
@@ -198,7 +212,6 @@ let Mesh = cc.Class({
      * @method setVertices
      * @param {String} name - the attribute name, e.g. gfx.ATTR_POSITION
      * @param {[Vec2|Vec3|Color|Number]} values - the vertex values
-     * @param {Number} [index] 
      */
     setVertices (name, values, index) {
         index = index || 0;
