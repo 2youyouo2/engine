@@ -1,7 +1,6 @@
 import { ctor2enums } from '../../../renderer/types';
 import murmurhash2 from '../../../renderer/murmurhash2_gc';
 import utils from './utils';
-import effect from '../../../renderer/core/effect';
 import enums from '../../../renderer/enums';
 
 export default class CustomProperties {
@@ -86,3 +85,4 @@ export default class CustomProperties {
 
 cc.CustomProperties = CustomProperties;
 cc.CustomProperties.ctor2enums = ctor2enums;
+cc.CustomProperties.enums = enums;
