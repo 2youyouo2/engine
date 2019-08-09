@@ -22,14 +22,13 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE.
  ****************************************************************************/
-// @ts-check
 
 const Asset = require('../CCAsset');
 const Texture = require('../CCTexture2D');
 const PixelFormat = Texture.PixelFormat;
 const EffectAsset = require('../CCEffectAsset');
+const EventTarget = require('../../event/event-target');
 
-import Effect from '../../../renderer/core/effect';
 import murmurhash2 from '../../../renderer/murmurhash2_gc';
 import utils from './utils';
 
@@ -42,6 +41,7 @@ import utils from './utils';
 let Material = cc.Class({
     name: 'cc.Material',
     extends: Asset,
+    mixins: CC_EDITOR ? [EventTarget] : undefined,
 
     ctor () {
         this._manualHash = false;
@@ -67,15 +67,19 @@ let Material = cc.Class({
 
         effectName: CC_EDITOR ? {
             get () {
-                return this._effectAsset.name;
+                return this._effectAsset ? this._effectAsset.name : "";
             },
             set (val) {
+                if (this._effectAsset && this._effectAsset.name === val) return;
+
                 let effectAsset = cc.AssetLibrary.getBuiltin('effect', val);
                 if (!effectAsset) {
                     Editor.warn(`no effect named '${val}' found`);
                     return;
                 }
                 this.effectAsset = effectAsset;
+
+                this.emit('effect-changed');
             }
         } : undefined,
 
@@ -88,12 +92,12 @@ let Material = cc.Class({
                     return;
                 }
 
-                this._effectAsset = asset;
                 if (!asset) {
                     cc.error('Can not set an empty effect asset.');
                     return;
                 }
-                this._effect = this._effectAsset.getInstantiatedEffect();;
+                this._effectAsset = asset;
+                this._effect = this._effectAsset.getInstantiatedEffect();
             }
         },
 
@@ -141,11 +145,11 @@ let Material = cc.Class({
         this.effectAsset = mat.effectAsset;
 
         for (let name in mat._defines) {
-            this.define(name, mat._defines[name]);
+            this.define(name, mat._defines[name], true);
         }
 
         for (let name in mat._props) {
-            this.setProperty(name, mat._props[name]);
+            this.setProperty(name, mat._props[name], true);
         }
     },
 
@@ -248,6 +252,7 @@ let Material = cc.Class({
             this.setProperty(prop, this._props[prop], true);
         }
     },
+
 });
 
 module.exports = cc.Material = Material;
