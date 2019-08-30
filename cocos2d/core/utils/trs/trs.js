@@ -1,5 +1,5 @@
 
-import quat from './quat';
+import quat from '../../vmath/quat';
 
 let tmp_quat = quat.create();
 

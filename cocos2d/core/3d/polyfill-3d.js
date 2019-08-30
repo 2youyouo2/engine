@@ -30,7 +30,7 @@ const DirtyFlag = Node._LocalDirtyFlag;
 const RenderFlow = require('../renderer/render-flow');
 
 import { mat4 } from '../vmath';
-import { trs } from '../vmath';
+import trs from '../utils/trs/trs';
 
 // ====== Node transform polyfills ======
 const ONE_DEGREE = Math.PI / 180;

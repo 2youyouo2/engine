@@ -50,7 +50,7 @@ const misc = require('../utils/misc');
  * @param {number} [y=0]
  */
 function Vec2 (x, y) {
-    if (x && typeof x === 'object') {
+    if (x && x.x !== undefined) {
         y = x.y;
         x = x.x;
     }

@@ -52,7 +52,7 @@ const v2Proto = require('./vec2').prototype;
  * @param {number} [z=0]
  */
 function Vec3 (x, y, z) {
-    if (x && typeof x === 'object') {
+    if (x && x.x !== undefined) {
         z = x.z;
         y = x.y;
         x = x.x;

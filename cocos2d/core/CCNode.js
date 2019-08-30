@@ -25,7 +25,9 @@
 
 'use strict';
 
-import { mat4, vec2, vec3, quat, trs } from './vmath';
+import { mat4, vec2, vec3, quat } from './vmath';
+import trs from './utils/trs/trs';
+import TRSPosition from './utils/trs/trs-position';
 
 const BaseNode = require('./utils/base-node');
 const PrefabHelper = require('./utils/prefab-helper');
@@ -1458,6 +1460,8 @@ let NodeDefines = {
             trs = this._trs = this._spaceInfo.trs;
         }
 
+        this._tpos = new TRSPosition(trs);
+
         if (this._zIndex !== undefined) {
             this._localZOrder = this._zIndex << 16;
             this._zIndex = undefined;
@@ -2219,8 +2223,12 @@ let NodeDefines = {
      * cc.log("Node Position: " + node.getPosition());
      */
     getPosition (out) {
-        out = out || cc.v3();
-        return trs.toPosition(out, this._trs);
+        if (out) {
+            trs.toPosition(out, this._trs);
+        }
+        else {
+            return this._tpos;
+        }
     },
 
     /**
