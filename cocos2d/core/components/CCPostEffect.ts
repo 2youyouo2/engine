@@ -24,56 +24,48 @@
  THE SOFTWARE.
  ****************************************************************************/
 
-require('./CCComponent');
-require('./CCComponentEventHandler');
-require('./missing-script');
+const Component = require('./CCComponent');
+import { ccclass, menu, property, executeInEditMode } from '../platform/CCClassDecorator';
 
-// In case subContextView modules are excluded
-let WXSubContextView = require('./WXSubContextView');
-let SwanSubContextView = require('./SwanSubContextView');
+@ccclass('cc.PostEffect')
+@executeInEditMode
+@menu('i18n:MAIN_MENU.component.renderers/PostEffect')
+export default class PostEffect extends Component {
+    @property({type: cc.Material})
+    _materials: cc.Material[] = [];
 
-if (!WXSubContextView) {
-    WXSubContextView = cc.Class({
-        name: 'cc.WXSubContextView',
-        extends: cc.Component,
-    });
+    @property({type: cc.Material})
+    get materials () {
+        return this._materials;
+    }
+    set materials (v) {
+        this._materials = v;
+        this._updateMaterials();
+    }
+
+    __preload () {
+        this._updateMaterials();
+    }
+
+    _updateMaterials () {
+        let materials = this._materials;
+        for (let i = 0; i < materials.length; i++) {
+            if (!materials[i]) continue;
+            materials[i] = cc.MaterialVariant.create(materials[i], this);
+        }
+    }
+
+    onEnable () {
+        if (CC_JSB) return;
+        let camera = this.getComponent(cc.Camera);
+        camera && camera._camera.setPostEffect(this);
+    }
+
+    onDisable () {
+        if (CC_JSB) return;
+        let camera = this.getComponent(cc.Camera);
+        camera && camera._camera.setPostEffect(null);
+    }
 }
 
-if (!SwanSubContextView) {
-    SwanSubContextView = cc.Class({
-        name: 'cc.SwanSubContextView',
-        extends: cc.Component,
-    });
-}
-
-var components = [
-    require('./CCSprite'),
-    require('./CCWidget'),
-    require('./CCCanvas'),
-    require('./CCAudioSource'),
-    require('./CCAnimation'),
-    require('./CCButton'),
-    require('./CCLabel'),
-    require('./CCProgressBar'),
-    require('./CCMask'),
-    require('./CCScrollBar'),
-    require('./CCScrollView'),
-    require('./CCPageViewIndicator'),
-    require('./CCPageView'),
-    require('./CCSlider'),
-    require('./CCLayout'),
-    require('./editbox/CCEditBox'),
-    require('./CCLabelOutline'),
-    require('./CCLabelShadow'),
-    require('./CCRichText'),
-    require('./CCToggleContainer'),
-    require('./CCToggleGroup'),
-    require('./CCToggle'),
-    require('./CCBlockInputEvents'),
-    require('./CCMotionStreak'),
-    require('./CCPostEffect'),
-    WXSubContextView,
-    SwanSubContextView,
-];
-
-module.exports = components;
+cc.PostEffect = PostEffect;

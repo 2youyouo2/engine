@@ -21,9 +21,25 @@ vec4 TEXEL_TO_LINEAR (in vec4 color) {
   #endif
 }
 
+vec3 TEXEL_TO_LINEAR (in vec3 color) {
+  #if INPUT_IS_GAMMA
+    return SRGBToLinear(color);
+  #else
+    return color;
+  #endif
+}
+
 vec4 LINEAR_TO_OUTPUT_TEXEL (in vec4 color) {
   #if OUTPUT_TO_GAMMA
     return vec4(LinearToSRGB(color.rgb), color.a);
+  #else
+    return color;
+  #endif
+}
+
+vec3 LINEAR_TO_OUTPUT_TEXEL (in vec3 color) {
+  #if OUTPUT_TO_GAMMA
+    return LinearToSRGB(color);
   #else
     return color;
   #endif

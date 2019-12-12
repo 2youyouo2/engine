@@ -50,6 +50,8 @@ export default class Pass {
         this._stencilZFailOpBack = gfx.STENCIL_OP_KEEP;
         this._stencilZPassOpBack = gfx.STENCIL_OP_KEEP;
         this._stencilWriteMaskBack = 0xff;
+
+        this._postEffect = null;
     }
 
     setCullMode (cullMode = gfx.CULL_BACK) {

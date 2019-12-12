@@ -48,6 +48,8 @@ export default class Camera {
 
   _cullingMask = 0xffffffff;
 
+  _postEffect = null;
+
 
   // culling mask
   get cullingMask () {
@@ -301,6 +303,13 @@ export default class Camera {
     this._framebuffer = framebuffer;
   }
 
+  getPostEffect () {
+    return this._postEffect;
+  }
+  setPostEffect (postEffect) {
+    this._postEffect = postEffect;
+  }
+
   _calcMatrices (width, height) {
     // view matrix
     this._node.getWorldRT(_matView);
@@ -344,6 +353,9 @@ export default class Camera {
     // priority
     out._priority = this._priority;
 
+    out.width = width;
+    out.height = height;
+
     // rect
     out._rect.x = this._rect.x * width;
     out._rect.y = this._rect.y * height;
@@ -361,13 +373,15 @@ export default class Camera {
     out._stages = this._stages;
     out._framebuffer = this._framebuffer;
 
+    out._cullingMask = this._cullingMask;
+
+    out._postEffect = this._postEffect;
+
     this._calcMatrices(width, height);
     Mat4.copy(out._matView, _matView);
     Mat4.copy(out._matProj, _matProj);
     Mat4.copy(out._matViewProj, _matViewProj);
     Mat4.copy(out._matInvViewProj, _matInvViewProj);
-
-    out._cullingMask = this._cullingMask;
   }
 
   /**

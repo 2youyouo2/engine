@@ -276,7 +276,7 @@ export default class Base {
   _draw (item) {
     const device = this._device;
     const programLib = this._programLib;
-    const { node, ia, passes, effect } = item;
+    const { node, ia, passes } = item;
 
     // reset the pool
     // NOTE: we can use drawCounter optimize this
@@ -327,7 +327,7 @@ export default class Base {
       // set program
       Object.setPrototypeOf(defines, pass._defines);
 
-      let program = programLib.getProgram(pass._programName, defines, effect._name);
+      let program = programLib.getProgram(pass._programName, defines, pass._detailName);
       device.setProgram(program);
 
       let uniforms = program._uniforms;
