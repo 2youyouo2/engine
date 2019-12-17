@@ -39,6 +39,7 @@ else {
     require('./cocos2d/core/components/CCStudioComponent');
     require('./extensions/ccpool/CCNodePool');
     require('./cocos2d/actions');
+    require('./cocos2d/post-effect');
 }
 
 require('./extensions/spine');
