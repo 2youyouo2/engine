@@ -1,8 +1,7 @@
 
 import InputAssembler from './input-assembler';
-import IndexBuffer from '../gfx/index-buffer';
-import VertexBuffer from '../gfx/vertex-buffer';
 import gfx from '../gfx';
+import Pass from './pass';
 
 let _textures = [];
 let _usedTextures = [];
@@ -31,6 +30,7 @@ let _item = {
     passes: []
 };
 let _allPasses = [];
+let _allCommands = {};
 
 let _resolution = new Float32Array([0, 0]);
 
@@ -96,26 +96,54 @@ export default {
         let flop, tmp;
 
         _allPasses.length = 0;
+        _allCommands = {}
 
         let requestOriginTexture = false;
-        let materials = postEffect.materials;
-        for (let i = 0; i < materials.length; i++) {
-            let m = materials[i];
+        let renderers = postEffect.renderers;
+        for (let i = 0; i < renderers.length; i++) {
+            let renderer = renderers[i];
+            let m = renderer && renderer.material;
             if (!m) continue;
 
+            let commands = renderer.commands;
+
             let passes = m.effect.passes;
-            for (let j = 0; j < passes.length; j++) {
-                let pass = passes[j];
-                if (pass._postEffect && pass._postEffect.requestOriginTexture) {
-                    requestOriginTexture = true;
+            if (commands.length == 0) {
+                for (let j = 0; j < passes.length; j++) {
+                    let pass = passes[j];
+                    if (pass._postEffect && pass._postEffect.requestOriginTexture) {
+                        requestOriginTexture = true;
+                    }
+                    _allPasses.push(pass);
                 }
-                _allPasses.push(pass);
             }
+            else {
+                for (let j = 0; j < commands.length; j++) {
+                    let c = commands[j];
+                    let pass = passes[c.passIndex];
+                    if (!pass) continue;
+
+                    if (pass._postEffect && pass._postEffect.requestOriginTexture) {
+                        requestOriginTexture = true;
+                    }
+                    _allCommands[_allPasses.length] = c;
+                    _allPasses.push(pass);
+                }
+            }
+            
         }
 
         for (let i = 0, l = _allPasses.length; i < l;i++) {
             let pass = _allPasses[i];
+            if (!(pass instanceof Pass)) continue;
 
+            let command = _allCommands[i];
+            if (command instanceof cc.PostEffectCommand) {
+                let values = command.values;
+                for (let name in values) {
+                    pass.setProperty(name, values[name]);
+                }
+            }
 
             _item.passes[0] = pass;
 
@@ -132,7 +160,7 @@ export default {
             device.setUniform('cc_pe_resolution', _resolution);
             device.setTexture('cc_pe_input_texture', flip.getImpl(), renderer._allocTextureUnit());
             device.setTexture('cc_pe_origin_texture', _originTexture.getImpl(), renderer._allocTextureUnit());
-            
+
             renderer._draw(_item);
 
             if (i+1 < l) {

@@ -24,34 +24,35 @@
  THE SOFTWARE.
  ****************************************************************************/
 
-const Component = require('./CCComponent');
-import { ccclass, menu, property, executeInEditMode } from '../platform/CCClassDecorator';
+import Component from '../core/components/CCComponent';
+import { ccclass, menu, property, executeInEditMode } from '../core/platform/CCClassDecorator';
+import PostEffectRenderer from './post-effect-renderer';
 
 @ccclass('cc.PostEffect')
 @executeInEditMode
 @menu('i18n:MAIN_MENU.component.renderers/PostEffect')
 export default class PostEffect extends Component {
-    @property({type: cc.Material})
-    _materials: cc.Material[] = [];
+    @property({type: PostEffectRenderer})
+    _renderers: PostEffectRenderer[] = [];
 
-    @property({type: cc.Material})
-    get materials () {
-        return this._materials;
+    @property({type: PostEffectRenderer})
+    get renderers () {
+        return this._renderers;
     }
-    set materials (v) {
-        this._materials = v;
-        this._updateMaterials();
+    set renderers (v) {
+        this._renderers = v;
+        this._updateRendererss();
     }
 
     __preload () {
-        this._updateMaterials();
+        this._updateRendererss();
     }
 
-    _updateMaterials () {
-        let materials = this._materials;
-        for (let i = 0; i < materials.length; i++) {
-            if (!materials[i]) continue;
-            materials[i] = cc.MaterialVariant.create(materials[i], this);
+    _updateRendererss () {
+        let renderers = this._renderers;
+        for (let i = 0; i < renderers.length; i++) {
+            if (!renderers[i]) continue;
+            renderers[i].init();
         }
     }
 
