@@ -16,9 +16,6 @@ export default class Effect extends EffectBase {
         return this._technique.passes;
     }
 
-    /**
-     * @param {Array} techniques
-     */
     constructor (name, techniques, techniqueIndex, asset) {
         super();
         this.init(name, techniques, techniqueIndex, asset, true);

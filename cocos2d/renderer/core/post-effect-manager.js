@@ -37,6 +37,8 @@ let _resolution = new Float32Array([0, 0]);
 let _originFrameBuffer = null;
 let _originTexture = null;
 
+let _requestOriginTexture = false;
+
 export default {
     _inited: false,
 
@@ -72,9 +74,40 @@ export default {
         _item.node = new cc.Node();
     },
 
-    begin (renderer, view) {        
+    begin (renderer, view) {
+        _allPasses.length = 0;
+
         let postEffect = view._postEffect;
         if (!postEffect) return;
+
+        _allCommands = {}
+
+        let renderers = postEffect.renderers;
+        for (let i = 0; i < renderers.length; i++) {
+            let renderer = renderers[i];
+            if (!renderer || !renderer.enabled || !renderer.material) continue;
+
+            let commands = renderer.commands;
+
+            let passes = renderer.material.effect.passes;
+            if (commands.length == 0) {
+                for (let j = 0; j < passes.length; j++) {
+                    _allPasses.push(passes[j]);
+                }
+            }
+            else {
+                for (let j = 0; j < commands.length; j++) {
+                    let c = commands[j];
+                    let pass = passes[c.passIndex];
+                    if (!pass) continue;
+
+                    _allCommands[_allPasses.length] = c;
+                    _allPasses.push(pass);
+                }
+            }
+        }
+
+        if (_allPasses <= 0) return;
 
         this.init(renderer);
 
@@ -84,9 +117,8 @@ export default {
     },
 
     end (renderer, view) {
-        let postEffect = view._postEffect;
-        if (!postEffect) return;
-        
+        if (_allPasses <= 0) return;
+
         let device = renderer._device;
 
         _resolution[0] = view.width;
@@ -94,44 +126,6 @@ export default {
 
         let flip = _originTexture;
         let flop, tmp;
-
-        _allPasses.length = 0;
-        _allCommands = {}
-
-        let requestOriginTexture = false;
-        let renderers = postEffect.renderers;
-        for (let i = 0; i < renderers.length; i++) {
-            let renderer = renderers[i];
-            let m = renderer && renderer.material;
-            if (!m) continue;
-
-            let commands = renderer.commands;
-
-            let passes = m.effect.passes;
-            if (commands.length == 0) {
-                for (let j = 0; j < passes.length; j++) {
-                    let pass = passes[j];
-                    if (pass._postEffect && pass._postEffect.requestOriginTexture) {
-                        requestOriginTexture = true;
-                    }
-                    _allPasses.push(pass);
-                }
-            }
-            else {
-                for (let j = 0; j < commands.length; j++) {
-                    let c = commands[j];
-                    let pass = passes[c.passIndex];
-                    if (!pass) continue;
-
-                    if (pass._postEffect && pass._postEffect.requestOriginTexture) {
-                        requestOriginTexture = true;
-                    }
-                    _allCommands[_allPasses.length] = c;
-                    _allPasses.push(pass);
-                }
-            }
-            
-        }
 
         for (let i = 0, l = _allPasses.length; i < l;i++) {
             let pass = _allPasses[i];
@@ -166,7 +160,7 @@ export default {
             if (i+1 < l) {
                 tmp = flip;
                 flip = flop;
-                flop = (i == 0 && requestOriginTexture) ? getTexture(view.width, view.height) : tmp;
+                flop = (i == 0 && _requestOriginTexture) ? getTexture(view.width, view.height) : tmp;
             }
         }
 

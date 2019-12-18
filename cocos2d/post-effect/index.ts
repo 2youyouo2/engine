@@ -1,5 +1,7 @@
 import './post-effect'
 
-import './post-effect-renderer';
+import PostEffectRenderer from './post-effect-renderer';
+import BlurPostEffectRenderer from './renderers/blur';
 
-import './renderers/blur';
+PostEffectRenderer.registerRenderer('Base', PostEffectRenderer);
+PostEffectRenderer.registerRenderer('Blur', BlurPostEffectRenderer);

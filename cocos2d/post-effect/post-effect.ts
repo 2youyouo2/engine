@@ -25,12 +25,13 @@
  ****************************************************************************/
 
 import Component from '../core/components/CCComponent';
-import { ccclass, menu, property, executeInEditMode } from '../core/platform/CCClassDecorator';
+import { ccclass, menu, property, executeInEditMode, inspector } from '../core/platform/CCClassDecorator';
 import PostEffectRenderer from './post-effect-renderer';
 
 @ccclass('cc.PostEffect')
 @executeInEditMode
 @menu('i18n:MAIN_MENU.component.renderers/PostEffect')
+@inspector('packages://inspector/inspectors/comps/post-effect.js')
 export default class PostEffect extends Component {
     @property({type: PostEffectRenderer})
     _renderers: PostEffectRenderer[] = [];
@@ -41,14 +42,14 @@ export default class PostEffect extends Component {
     }
     set renderers (v) {
         this._renderers = v;
-        this._updateRendererss();
+        this._updateRenderers();
     }
 
     __preload () {
-        this._updateRendererss();
+        this._updateRenderers();
     }
 
-    _updateRendererss () {
+    _updateRenderers () {
         let renderers = this._renderers;
         for (let i = 0; i < renderers.length; i++) {
             if (!renderers[i]) continue;

@@ -6,6 +6,10 @@ let _direction_v2 = new Vec2;
 
 @ccclass('cc.BlurPostEffectRenderer')
 export default class BlurPostEffectRenderer extends PostEffectRenderer {
+    get defaultMaterialName () {
+        return 'blur-post-effect';
+    }
+
     @property({type: cc.Intger})
     _iteration: number = 2;
     @property({type: cc.Intger})
@@ -46,6 +50,8 @@ export default class BlurPostEffectRenderer extends PostEffectRenderer {
     }
 
     init () {
+        super.init();
+        
         let commands = this._commands;
         commands.length = 0;
         for (let i = 0, l = this._iteration * 2; i < l; i++) {
