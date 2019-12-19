@@ -37,8 +37,6 @@ let _resolution = new Float32Array([0, 0]);
 let _originFrameBuffer = null;
 let _originTexture = null;
 
-let _requestOriginTexture = false;
-
 export default {
     _inited: false,
 
@@ -120,16 +118,15 @@ export default {
         if (_allPasses <= 0) return;
 
         let device = renderer._device;
-
-        _resolution[0] = view.width;
-        _resolution[1] = view.height;
-
-        let flip = _originTexture;
-        let flop, tmp;
+        let flip, flop, tmp;
 
         for (let i = 0, l = _allPasses.length; i < l;i++) {
             let pass = _allPasses[i];
             if (!(pass instanceof Pass)) continue;
+
+            device.setTexture('cc_pe_origin_texture', _originTexture.getImpl(), renderer._allocTextureUnit());
+
+            let opts = pass._postEffect;
 
             let command = _allCommands[i];
             if (command instanceof cc.PostEffectCommand) {
@@ -139,28 +136,51 @@ export default {
                 }
             }
 
-            _item.passes[0] = pass;
 
+            let input = flip || _originTexture;
+            device.setTexture('cc_pe_input_texture', input.getImpl(), renderer._allocTextureUnit());
+
+            let width = view.width, height = view.height;
             if (i < (l-1)) {
-                if (!flop) {
-                    flop = getTexture(view.width, view.height);
+                let output = opts && opts.output;
+                if (output && output.size) {
+                    width *= output.size[0];
+                    height *= output.size[1];
                 }
+                
+                if (!flop) {
+                    flop = getTexture(width, height);
+                }
+                else {
+                    flop.updateSize(width, height);
+                }
+
+                if (output && output.name) {
+                    device.setTexture(output.name, flop.getImpl(), renderer._allocTextureUnit());
+                    flip = null;
+                }
+                
                 device.setFrameBuffer(flop._framebuffer);
             }
             else {
                 device.setFrameBuffer(_originFrameBuffer);
             }
 
-            device.setUniform('cc_pe_resolution', _resolution);
-            device.setTexture('cc_pe_input_texture', flip.getImpl(), renderer._allocTextureUnit());
-            device.setTexture('cc_pe_origin_texture', _originTexture.getImpl(), renderer._allocTextureUnit());
+            device.setViewport(0, 0, width, height);
 
+            if (_resolution[0] !== width || _resolution[1] !== height) {
+                _resolution[0] = width;
+                _resolution[1] = height;
+                device.setUniform('cc_pe_resolution', _resolution);
+            }
+            
+            _item.passes[0] = pass;
             renderer._draw(_item);
 
             if (i+1 < l) {
                 tmp = flip;
                 flip = flop;
-                flop = (i == 0 && _requestOriginTexture) ? getTexture(view.width, view.height) : tmp;
+                flop = tmp;
             }
         }
 
