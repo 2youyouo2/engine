@@ -130,12 +130,11 @@ export default {
 
             let command = _allCommands[i];
             if (command instanceof cc.PostEffectCommand) {
-                let values = command.values;
-                for (let name in values) {
-                    pass.setProperty(name, values[name]);
+                let props = command.properties;
+                for (let name in props) {
+                    pass.setProperty(name, props[name]);
                 }
             }
-
 
             let input = flip || _originTexture;
             device.setTexture('cc_pe_input_texture', input.getImpl(), renderer._allocTextureUnit());

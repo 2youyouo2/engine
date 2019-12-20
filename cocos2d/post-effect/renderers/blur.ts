@@ -1,4 +1,6 @@
-import PostEffectRenderer, { PostEffectCommand } from '../post-effect-renderer';
+import PostEffectRenderer from '../post-effect-renderer';
+import PostEffectCommand from '../post-effect-command';
+
 import { ccclass, property } from '../../core/platform/CCClassDecorator';
 import Vec2 from '../../core/value-types/vec2';
 
@@ -41,10 +43,10 @@ export default class BlurPostEffectRenderer extends PostEffectRenderer {
         let commands = this._commands;
         for (let i = 0, l = iteration * 2; i < l; i++) {
             if (i < iteration) {
-                Vec2.set(commands[i].values.direction, (i+1) * step, 0);
+                commands[i].setProperty('direction', [(i+1) * step, 0]);
             }
             else {
-                Vec2.set(commands[i].values.direction, 0, (i%2+1) * step);
+                commands[i].setProperty('direction', [0, (i%2+1) * step]);
             }
         }
     }
@@ -55,7 +57,7 @@ export default class BlurPostEffectRenderer extends PostEffectRenderer {
         let commands = this._commands;
         commands.length = 0;
         for (let i = 0, l = this._iteration * 2; i < l; i++) {
-            let properties = { direction: new Vec2() };
+            let properties = { direction: new Float32Array([0, 0]) };
             commands.push(new PostEffectCommand(0, properties));
         }
 

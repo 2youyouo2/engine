@@ -1,17 +1,7 @@
 
 import { ccclass, property } from '../core/platform/CCClassDecorator';
 import Material from '../core/assets/material/CCMaterial';
-
-
-export class PostEffectCommand {
-    passIndex = 0;
-    values: {};
-    constructor (passIndx: number, values: {}) {
-        this.passIndex = passIndx;
-        this.values = values;
-    }
-}
-cc.PostEffectCommand = PostEffectCommand;
+import PostEffectCommand from './post-effect-command';
 
 @ccclass('cc.PostEffectRenderer')
 export default class PostEffectRenderer {
