@@ -183,6 +183,10 @@ export default class EffectBase {
         }
         this._dirty = true;
     }
+
+    getPassCount () {
+        return this.passes.length;
+    }
 }
 
 cc.EffectBase = EffectBase;

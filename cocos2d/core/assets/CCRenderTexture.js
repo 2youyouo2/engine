@@ -60,6 +60,10 @@ let RenderTexture = cc.Class({
     },
 
     updateSize(width, height) {
+        if (this.width === width && this.height === height) {
+            return;
+        }
+        
         this.width = Math.floor(width || cc.visibleRect.width);
         this.height = Math.floor(height || cc.visibleRect.height);
         this._resetUnderlyingMipmaps();

@@ -103,6 +103,8 @@ function parseTechniques (effectAsset) {
                 newPass.setStencilBack(depthStencilState.stencilTest, depthStencilState.stencilFuncBack, depthStencilState.stencilRefBack, depthStencilState.stencilMaskBack,
                     depthStencilState.stencilFailOpBack, depthStencilState.stencilZFailOpBack, depthStencilState.stencilZPassOpBack, depthStencilState.stencilWriteMaskBack);
             }
+
+            newPass._postEffect = pass.postEffect;
         }
         techniques[j] = new Technique(techName, passes);
     }

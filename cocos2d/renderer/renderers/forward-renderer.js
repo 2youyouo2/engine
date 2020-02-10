@@ -4,6 +4,7 @@ import { Vec3, Vec4, Mat4 } from '../../core/value-types';
 import BaseRenderer from '../core/base-renderer';
 import enums from '../enums';
 import { RecyclePool } from '../memop';
+import PostEffectManager from '../core/post-effect-manager';
 
 let _a16_view = new Float32Array(16);
 let _a16_proj = new Float32Array(16);
@@ -77,7 +78,11 @@ export default class ForwardRenderer extends BaseRenderer {
 
     for (let i = 0; i < this._viewPools.length; ++i) {
       let view = this._viewPools.data[i];
+
+      PostEffectManager.begin(this, view);
       this._render(view, scene);
+      PostEffectManager.end(this, view);
+
     }
   }
 
@@ -92,7 +97,9 @@ export default class ForwardRenderer extends BaseRenderer {
     let view = this._requestView();
     camera.extractView(view, width, height);
     
+    PostEffectManager.begin(this, view);
     this._render(view, scene);
+    PostEffectManager.end(this, view);
   }
 
   _updateLights (scene) {

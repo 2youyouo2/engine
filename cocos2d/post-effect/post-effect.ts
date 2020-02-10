@@ -24,27 +24,50 @@
  THE SOFTWARE.
  ****************************************************************************/
 
-require('./cocos2d/core');
-require('./cocos2d/animation');
+import Component from '../core/components/CCComponent';
+import { ccclass, menu, property, executeInEditMode, inspector } from '../core/platform/CCClassDecorator';
+import PostEffectRenderer from './post-effect-renderer';
 
-if (CC_EDITOR && Editor.isMainProcess) {
-    require('./cocos2d/particle/CCParticleAsset');
-    require('./cocos2d/tilemap/CCTiledMapAsset');
-}
-else {
-    require('./cocos2d/particle');
-    require('./cocos2d/tilemap');
-    require('./cocos2d/videoplayer/CCVideoPlayer');
-    require('./cocos2d/webview/CCWebView');
-    require('./cocos2d/core/components/CCStudioComponent');
-    require('./extensions/ccpool/CCNodePool');
-    require('./cocos2d/actions');
-    require('./cocos2d/post-effect');
+@ccclass('cc.PostEffect')
+@executeInEditMode
+@menu('i18n:MAIN_MENU.component.renderers/PostEffect')
+@inspector('packages://inspector/inspectors/comps/post-effect.js')
+export default class PostEffect extends Component {
+    @property({type: PostEffectRenderer})
+    _renderers: PostEffectRenderer[] = [];
+
+    @property({type: PostEffectRenderer})
+    get renderers () {
+        return this._renderers;
+    }
+    set renderers (v) {
+        this._renderers = v;
+        this._updateRenderers();
+    }
+
+    __preload () {
+        this._updateRenderers();
+    }
+
+    _updateRenderers () {
+        let renderers = this._renderers;
+        for (let i = 0; i < renderers.length; i++) {
+            if (!renderers[i]) continue;
+            renderers[i].init();
+        }
+    }
+
+    onEnable () {
+        if (CC_JSB) return;
+        let camera = this.getComponent(cc.Camera);
+        camera && camera._camera.setPostEffect(this);
+    }
+
+    onDisable () {
+        if (CC_JSB) return;
+        let camera = this.getComponent(cc.Camera);
+        camera && camera._camera.setPostEffect(null);
+    }
 }
 
-require('./extensions/spine');
-require('./extensions/dragonbones');
-
-if (!CC_EDITOR || !Editor.isMainProcess) {
-    require('./cocos2d/deprecated');
-}
+cc.PostEffect = PostEffect;

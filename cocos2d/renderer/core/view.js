@@ -19,6 +19,9 @@ export default class View {
     // priority. the smaller one will be rendered first
     this._priority = 0;
 
+    this.width = 0;
+    this.height = 0;
+
     // viewport
     this._rect = {
       x: 0, y: 0, w: 1, h: 1
@@ -50,6 +53,8 @@ export default class View {
     this._shadowLight = null; // TODO: should not refer light in view.
 
     this._cullingMask = 0xffffffff;
+
+    this._postEffect = null;
   }
 
   /**
