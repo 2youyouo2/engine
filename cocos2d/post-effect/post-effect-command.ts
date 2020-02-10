@@ -8,6 +8,10 @@ export default class PostEffectCommand {
         return this._properties;
     }
 
+    get passIndex () {
+        return this._passIndex;
+    }
+
     constructor (passIndx: number, properties: {}) {
         this._passIndex = passIndx;
         this._properties = properties;

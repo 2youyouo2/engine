@@ -4,8 +4,6 @@ import PostEffectCommand from '../post-effect-command';
 import { ccclass, property } from '../../core/platform/CCClassDecorator';
 import Vec2 from '../../core/value-types/vec2';
 
-let _direction_v2 = new Vec2;
-
 @ccclass('cc.BlurPostEffectRenderer')
 export default class BlurPostEffectRenderer extends PostEffectRenderer {
     get defaultMaterialName () {
