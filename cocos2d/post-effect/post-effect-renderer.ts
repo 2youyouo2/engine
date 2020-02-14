@@ -21,7 +21,8 @@ export default class PostEffectRenderer {
         return this._material;
     }
     set material (v) {
-        this._material = cc.MaterialVariant.create(v);;
+        this._material = cc.MaterialVariant.create(v);
+        this._updateMaterial();
     }
 
     @property({type: cc.Boolean})
@@ -61,6 +62,12 @@ export default class PostEffectRenderer {
             });
         }
     }
+
+    _updateMaterial () {
+
+    }
 }
 
 cc.PostEffectRenderer = PostEffectRenderer;
+
+PostEffectRenderer.registerRenderer('Base', PostEffectRenderer);

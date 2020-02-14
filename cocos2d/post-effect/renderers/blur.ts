@@ -2,12 +2,11 @@ import PostEffectRenderer from '../post-effect-renderer';
 import PostEffectCommand from '../post-effect-command';
 
 import { ccclass, property } from '../../core/platform/CCClassDecorator';
-import Vec2 from '../../core/value-types/vec2';
 
 @ccclass('cc.BlurPostEffectRenderer')
 export default class BlurPostEffectRenderer extends PostEffectRenderer {
     get defaultMaterialName () {
-        return 'blur-post-effect';
+        return 'builtin-blur-post-effect';
     }
 
     @property({type: cc.Intger})
@@ -63,4 +62,4 @@ export default class BlurPostEffectRenderer extends PostEffectRenderer {
     }
 }
 
-cc.BlurPostEffectRenderer = BlurPostEffectRenderer;
+PostEffectRenderer.registerRenderer('Blur', BlurPostEffectRenderer);

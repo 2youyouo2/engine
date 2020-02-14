@@ -363,11 +363,7 @@ let Material = cc.Class({
     ) {
         this._effect.setStencil(stencilTest, stencilFunc, stencilRef, stencilMask, stencilFailOp, stencilZFailOp, stencilZPassOp, stencilWriteMask, passIdx);
     },
-
-    getPassCount () {
-        return this._effect.getPassCount();
-    },
-
+    
     updateHash (hash) {
         this._manualHash = hash;
         this._effect && this._effect.updateHash(hash);
