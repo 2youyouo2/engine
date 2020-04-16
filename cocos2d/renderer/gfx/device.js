@@ -441,6 +441,38 @@ function _commitCullMode(gl, cur, next) {
   gl.cullFace(next.cullMode);
 }
 
+
+let quadVertices = new Float32Array([
+  0, 0, 1, 0,
+  0, 1, 1, 1
+]);
+let quadIndices = new Uint16Array([0,1,2,1,2,3]);
+
+let quadVB;
+let quadIB;
+
+function bindInstance (gl, posLocation) {
+  if (!quadVB) {
+    quadVB = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadVB);
+    gl.bufferData(gl.ARRAY_BUFFER, quadVertices, gl.STATIC_DRAW);
+  }
+  else {
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadVB);
+  }
+  gl.enableVertexAttribArray(posLocation)
+  gl.vertexAttribPointer(posLocation, 2, gl.FLOAT, false, 2 * 4, 0);
+
+  if (!quadIB) {
+    quadIB = gl.createBuffer()
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, quadIB);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, quadIndices, gl.STATIC_DRAW);
+  }
+  else {
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, quadIB);
+  }
+}
+
 /**
  * _commitVertexBuffers
  */
@@ -469,6 +501,7 @@ function _commitVertexBuffers(device, gl, cur, next) {
   }
 
   if (attrsDirty) {
+
     for (let i = 0; i < device._caps.maxVertexAttribs; ++i) {
       device._newAttributes[i] = 0;
     }
@@ -482,12 +515,14 @@ function _commitVertexBuffers(device, gl, cur, next) {
 
       gl.bindBuffer(gl.ARRAY_BUFFER, vb._glID);
 
+      let maxLocation = -1;
+
       for (let j = 0; j < next.program._attributes.length; ++j) {
         let attr = next.program._attributes[j];
 
         let el = vb._format.element(attr.name);
         if (!el) {
-          console.warn(`Can not find vertex attribute: ${attr.name}`);
+          // console.warn(`Can not find vertex attribute: ${attr.name}`);
           continue;
         }
 
@@ -505,16 +540,21 @@ function _commitVertexBuffers(device, gl, cur, next) {
           el.stride,
           el.offset + vbOffset * el.stride
         );
+
+        gl.vertexAttribDivisor(attr.location, 1);
+
+        maxLocation = Math.max(attr.location, maxLocation);
       }
     }
 
-    // disable unused attributes
-    for (let i = 0; i < device._caps.maxVertexAttribs; ++i) {
-      if (device._enabledAttributes[i] !== device._newAttributes[i]) {
-        gl.disableVertexAttribArray(i);
-        device._enabledAttributes[i] = 0;
-      }
-    }
+    // // disable unused attributes
+    // for (let i = 0; i < device._caps.maxVertexAttribs; ++i) {
+    //   if (device._enabledAttributes[i] !== device._newAttributes[i]) {
+    //     gl.disableVertexAttribArray(i);
+    //     device._enabledAttributes[i] = 0;
+    //   }
+    // }
+
   }
 }
 
@@ -598,7 +638,9 @@ export default class Device {
     }
 
     try {
-      gl = canvasEL.getContext('webgl', opts)
+      gl = canvasEL.getContext('webgl2', opts)
+        || canvasEL.getContext('experimental-webgl2', opts)
+        || canvasEL.getContext('webgl', opts)
         || canvasEL.getContext('experimental-webgl', opts)
         || canvasEL.getContext('webkit-3d', opts)
         || canvasEL.getContext('moz-webgl', opts);
@@ -1318,9 +1360,9 @@ export default class Device {
     _commitVertexBuffers(this, gl, cur, next);
 
     // commit index-buffer
-    if (cur.indexBuffer !== next.indexBuffer) {
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, next.indexBuffer && next.indexBuffer._glID !== -1 ? next.indexBuffer._glID : null);
-    }
+    // if (cur.indexBuffer !== next.indexBuffer) {
+    //   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, next.indexBuffer && next.indexBuffer._glID !== -1 ? next.indexBuffer._glID : null);
+    // }
 
     // commit program
     let programDirty = false;
@@ -1365,12 +1407,15 @@ export default class Device {
     if (count) {
       // drawPrimitives
       if (next.indexBuffer) {
-        gl.drawElements(
-          this._next.primitiveType,
-          count,
-          next.indexBuffer._format,
-          base * next.indexBuffer._bytesPerIndex
-        );
+        // gl.drawElements(
+        //   this._next.primitiveType,
+        //   count,
+        //   next.indexBuffer._format,
+        //   base * next.indexBuffer._bytesPerIndex
+        // );
+        bindInstance(gl, next.program._attributes.findIndex(a => a.name === 'a_position'))
+        gl.drawElementsInstanced(this._next.primitiveType, 6, next.indexBuffer._format, 0, count/6)
+        // gl.drawElements(this._next.primitiveType, 6, next.indexBuffer._format, 0)
       } else {
         gl.drawArrays(
           this._next.primitiveType,

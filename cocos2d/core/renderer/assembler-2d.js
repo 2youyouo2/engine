@@ -2,12 +2,20 @@ import Assembler from './assembler';
 import dynamicAtlasManager from './utils/dynamic-atlas/manager';
 import RenderData from './webgl/render-data';
 
+var vfmtMa4 = new cc.gfx.VertexFormat([
+    { name: 'a_uv_matrix', type: cc.gfx.ATTR_TYPE_FLOAT32, num: 4 },
+    { name: 'a_pos_rotate_scale', type: cc.gfx.ATTR_TYPE_FLOAT32, num: 4 },
+    { name: 'a_pos_translate', type: cc.gfx.ATTR_TYPE_FLOAT32, num: 2 },
+]);
+
 export default class Assembler2D extends Assembler {
     constructor () {
         super();
 
         this._renderData = new RenderData();
         this._renderData.init(this);
+
+        this._matArray = new Float32Array(10);
         
         this.initData();
         this.initLocal();
@@ -27,66 +35,80 @@ export default class Assembler2D extends Assembler {
     }
 
     updateColor (comp, color) {
-        let uintVerts = this._renderData.uintVDatas[0];
-        if (!uintVerts) return;
-        color = color ||comp.node.color._val;
-        let floatsPerVert = this.floatsPerVert;
-        let colorOffset = this.colorOffset;
-        for (let i = colorOffset, l = uintVerts.length; i < l; i += floatsPerVert) {
-            uintVerts[i] = color;
-        }
+        // let uintVerts = this._renderData.uintVDatas[0];
+        // if (!uintVerts) return;
+        // color = color ||comp.node.color._val;
+        // let floatsPerVert = this.floatsPerVert;
+        // let colorOffset = this.colorOffset;
+        // for (let i = colorOffset, l = uintVerts.length; i < l; i += floatsPerVert) {
+        //     uintVerts[i] = color;
+        // }
+    }
+
+    getVfmt () {
+        return vfmtMa4;
     }
 
     getBuffer () {
-        return cc.renderer._handle._meshBuffer;
+        return cc.renderer._handle.getBuffer('mesh', this.getVfmt());
     }
 
     updateWorldVerts (comp) {
         let local = this._local;
-        let verts = this._renderData.vDatas[0];
 
-        let matrix = comp.node._worldMatrix;
-        let matrixm = matrix.m,
-            a = matrixm[0], b = matrixm[1], c = matrixm[4], d = matrixm[5],
-            tx = matrixm[12], ty = matrixm[13];
+        let m = comp.node._worldMatrix.m;
+        let _m = this._matArray;
+        _m[4] = m[0] * local[2];
+        _m[5] = m[1];
+        _m[6] = m[4];
+        _m[7] = m[5] * local[3];
+        _m[8] = m[12] + local[0] * m[0];
+        _m[9] = m[13] + local[1] * m[5];
 
-        let vl = local[0], vr = local[2],
-            vb = local[1], vt = local[3];
+        // let verts = this._renderData.vDatas[0];
+
+        // let matrix = comp.node._worldMatrix;
+        // let matrixm = matrix.m,
+        //     a = matrixm[0], b = matrixm[1], c = matrixm[4], d = matrixm[5],
+        //     tx = matrixm[12], ty = matrixm[13];
+
+        // let vl = local[0], vr = local[2],
+        //     vb = local[1], vt = local[3];
         
-        let justTranslate = a === 1 && b === 0 && c === 0 && d === 1;
+        // let justTranslate = a === 1 && b === 0 && c === 0 && d === 1;
 
-        if (justTranslate) {
-            // left bottom
-            verts[0] = vl + tx;
-            verts[1] = vb + ty;
-            // right bottom
-            verts[5] = vr + tx;
-            verts[6] = vb + ty;
-            // left top
-            verts[10] = vl + tx;
-            verts[11] = vt + ty;
-            // right top
-            verts[15] = vr + tx;
-            verts[16] = vt + ty;
-        } else {
-            let al = a * vl, ar = a * vr,
-            bl = b * vl, br = b * vr,
-            cb = c * vb, ct = c * vt,
-            db = d * vb, dt = d * vt;
+        // if (justTranslate) {
+        //     // left bottom
+        //     verts[0] = vl + tx;
+        //     verts[1] = vb + ty;
+        //     // right bottom
+        //     verts[5] = vr + tx;
+        //     verts[6] = vb + ty;
+        //     // left top
+        //     verts[10] = vl + tx;
+        //     verts[11] = vt + ty;
+        //     // right top
+        //     verts[15] = vr + tx;
+        //     verts[16] = vt + ty;
+        // } else {
+        //     let al = a * vl, ar = a * vr,
+        //     bl = b * vl, br = b * vr,
+        //     cb = c * vb, ct = c * vt,
+        //     db = d * vb, dt = d * vt;
 
-            // left bottom
-            verts[0] = al + cb + tx;
-            verts[1] = bl + db + ty;
-            // right bottom
-            verts[5] = ar + cb + tx;
-            verts[6] = br + db + ty;
-            // left top
-            verts[10] = al + ct + tx;
-            verts[11] = bl + dt + ty;
-            // right top
-            verts[15] = ar + ct + tx;
-            verts[16] = br + dt + ty;
-        }
+        //     // left bottom
+        //     verts[0] = al + cb + tx;
+        //     verts[1] = bl + db + ty;
+        //     // right bottom
+        //     verts[5] = ar + cb + tx;
+        //     verts[6] = br + db + ty;
+        //     // left top
+        //     verts[10] = al + ct + tx;
+        //     verts[11] = bl + dt + ty;
+        //     // right top
+        //     verts[15] = ar + ct + tx;
+        //     verts[16] = br + dt + ty;
+        // }
     }
 
     fillBuffers (comp, renderer) {
@@ -94,9 +116,9 @@ export default class Assembler2D extends Assembler {
             this.updateWorldVerts(comp);
         }
 
-        let renderData = this._renderData;
-        let vData = renderData.vDatas[0];
-        let iData = renderData.iDatas[0];
+        // let renderData = this._renderData;
+        // let vData = renderData.vDatas[0];
+        // let iData = renderData.iDatas[0];
 
         let buffer = this.getBuffer(renderer);
         let offsetInfo = buffer.request(this.verticesCount, this.indicesCount);
@@ -107,19 +129,20 @@ export default class Assembler2D extends Assembler {
         let vertexOffset = offsetInfo.byteOffset >> 2,
             vbuf = buffer._vData;
 
+        let vData = comp.node._worldMatrix.m;
         if (vData.length + vertexOffset > vbuf.length) {
             vbuf.set(vData.subarray(0, vbuf.length - vertexOffset), vertexOffset);
         } else {
-            vbuf.set(vData, vertexOffset);
+            vbuf.set(this._matArray, vertexOffset);
         }
 
         // fill indices
-        let ibuf = buffer._iData,
-            indiceOffset = offsetInfo.indiceOffset,
-            vertexId = offsetInfo.vertexOffset;
-        for (let i = 0, l = iData.length; i < l; i++) {
-            ibuf[indiceOffset++] = vertexId + iData[i];
-        }
+        // let ibuf = buffer._iData,
+        //     indiceOffset = offsetInfo.indiceOffset,
+        //     vertexId = offsetInfo.vertexOffset;
+        // for (let i = 0, l = iData.length; i < l; i++) {
+        //     ibuf[indiceOffset++] = vertexId + iData[i];
+        // }
     }
 
     packToDynamicAtlas (comp, frame) {
@@ -143,9 +166,9 @@ export default class Assembler2D extends Assembler {
 }
 
 cc.js.addon(Assembler2D.prototype, {
-    floatsPerVert: 5,
+    floatsPerVert: 10,
 
-    verticesCount: 4,
+    verticesCount: 1,
     indicesCount: 6,
 
     uvOffset: 2,

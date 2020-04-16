@@ -37,16 +37,22 @@ export default class SimpleSpriteAssembler extends Assembler2D {
     }
 
     updateUVs (sprite) {
+        // let uv = sprite._spriteFrame.uv;
+        // let uvOffset = this.uvOffset;
+        // let floatsPerVert = this.floatsPerVert;
+        // let verts = this._renderData.vDatas[0];
+        // for (let i = 0; i < 4; i++) {
+        //     let srcOffset = i * 2;
+        //     let dstOffset = floatsPerVert * i + uvOffset;
+        //     verts[dstOffset] = uv[srcOffset];
+        //     verts[dstOffset + 1] = uv[srcOffset + 1];
+        // }
         let uv = sprite._spriteFrame.uv;
-        let uvOffset = this.uvOffset;
-        let floatsPerVert = this.floatsPerVert;
-        let verts = this._renderData.vDatas[0];
-        for (let i = 0; i < 4; i++) {
-            let srcOffset = i * 2;
-            let dstOffset = floatsPerVert * i + uvOffset;
-            verts[dstOffset] = uv[srcOffset];
-            verts[dstOffset + 1] = uv[srcOffset + 1];
-        }
+        let m = this._matArray;
+        m[0] = uv[0]; 
+        m[1] = uv[1]; 
+        m[2] = uv[6]; 
+        m[3] = uv[7];
     }
 
     updateVerts (sprite) {
@@ -79,8 +85,8 @@ export default class SimpleSpriteAssembler extends Assembler2D {
         let local = this._local;
         local[0] = l;
         local[1] = b;
-        local[2] = r;
-        local[3] = t;
+        local[2] = r-l;
+        local[3] = t-b;
         this.updateWorldVerts(sprite);
     }
 }
