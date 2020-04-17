@@ -98,7 +98,9 @@ ModelBatcher.prototype = {
         this._sortKey = 0;
 
         for (let key in _buffers) {
-            _buffers[key].reset();
+            if (!_buffers[key].notReset) {
+                _buffers[key].reset();
+            }
         }
         this._buffer = this._meshBuffer;
 
@@ -136,7 +138,7 @@ ModelBatcher.prototype = {
         let material = this.material,
             buffer = this._buffer,
             indiceCount = buffer.indiceOffset - buffer.indiceStart;
-        if (!this.walking || !material || indiceCount <= 0) {
+        if (!this.walking || !material || !buffer.vertexOffset /*|| indiceCount <= 0*/) {
             return;
         }
 
@@ -148,7 +150,7 @@ ModelBatcher.prototype = {
         ia._vertexBuffer = buffer._vb;
         ia._indexBuffer = buffer._ib;
         ia._start = buffer.indiceStart;
-        ia._count = indiceCount;
+        // ia._count = indiceCount;
         
         // Generate model
         let model = this._modelPool.add();
@@ -193,6 +195,9 @@ ModelBatcher.prototype = {
         this._flush();
 
         for (let key in _buffers) {
+            if (_buffers[key].notReset) {
+                _buffers[key]._dirty = true
+            }
             _buffers[key].uploadData();
         }
     

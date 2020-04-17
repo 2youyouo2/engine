@@ -22,9 +22,9 @@ export default class InputAssembler {
       return this._count;
     }
 
-    if (this._indexBuffer) {
-      return this._indexBuffer.count;
-    }
+    // if (this._indexBuffer) {
+    //   return this._indexBuffer.count;
+    // }
 
     if (this._vertexBuffer) {
       return this._vertexBuffer.count;

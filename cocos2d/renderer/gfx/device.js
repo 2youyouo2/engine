@@ -1422,7 +1422,7 @@ export default class Device {
         // );
         bindInstance(gl, next.program)
         // gl.drawElementsInstanced(this._next.primitiveType, 6, next.indexBuffer._format, 0, count/6)
-        this.ext('ANGLE_instanced_arrays').drawElementsInstancedANGLE(this._next.primitiveType, 6, next.indexBuffer._format, 0, count/6)
+        this.ext('ANGLE_instanced_arrays').drawElementsInstancedANGLE(this._next.primitiveType, 6, next.indexBuffer._format, 0, count)
         // gl.drawElements(this._next.primitiveType, 6, next.indexBuffer._format, 0)
       } else {
         gl.drawArrays(

@@ -7,7 +7,23 @@ var vfmtMa4 = new cc.gfx.VertexFormat([
     { name: 'a_pos_local', type: cc.gfx.ATTR_TYPE_FLOAT32, num: 4 },
     { name: 'a_pos_rotate_scale', type: cc.gfx.ATTR_TYPE_FLOAT32, num: 4 },
     { name: 'a_pos_translate', type: cc.gfx.ATTR_TYPE_FLOAT32, num: 2 },
-]);
+])
+
+let instanceBuffer;
+let vbuf;
+
+function getBuffer () {
+    if (!instanceBuffer) {
+        instanceBuffer = cc.renderer._handle.getBuffer('mesh', vfmtMa4);
+        instanceBuffer.request(250000, 0);
+        instanceBuffer.notReset = true;
+        
+        vbuf = instanceBuffer._vData;
+    }
+    return instanceBuffer;
+}
+
+let bufferIdx = 0;
 
 export default class Assembler2D extends Assembler {
     constructor () {
@@ -20,6 +36,9 @@ export default class Assembler2D extends Assembler {
         
         this.initData();
         this.initLocal();
+
+        getBuffer();
+        this._bufferOffset = this.floatsPerVert * bufferIdx++;
     }
 
     get verticesFloats () {
@@ -51,25 +70,30 @@ export default class Assembler2D extends Assembler {
     }
 
     getBuffer () {
-        if (!this._buffer) {
-            this._buffer = cc.renderer._handle.getBuffer('mesh', this.getVfmt());
-        }
-        return this._buffer;
+        // if (!this._buffer) {
+        //     this._buffer = cc.renderer._handle.getBuffer('mesh', this.getVfmt());
+        // }
+        // return this._buffer;
+        return getBuffer();
+    }
+
+    getVBuffer () {
+        return vbuf;
     }
 
     updateWorldVerts (comp) {
         // let local = this._local;
 
+        let buffer = this.getVBuffer();
+        let bufferOffset = this._bufferOffset;
+
         let m = comp.node._worldMatrix.m;
-        let _m = this._matArray;
-        // this._matArray.set(comp.node._worldMatrix.m, 8)
-        
-        _m[8] = m[0];
-        _m[9] = m[1];
-        _m[10] = m[4];
-        _m[11] = m[5];
-        _m[12] = m[12];
-        _m[13] = m[13];
+        buffer[bufferOffset + 8] = m[0];
+        buffer[bufferOffset + 9] = m[1];
+        buffer[bufferOffset + 10] = m[4];
+        buffer[bufferOffset + 11] = m[5];
+        buffer[bufferOffset + 12] = m[12];
+        buffer[bufferOffset + 13] = m[13];
 
         // let verts = this._renderData.vDatas[0];
 
@@ -122,24 +146,27 @@ export default class Assembler2D extends Assembler {
             this.updateWorldVerts(comp);
         }
 
+        cc.renderer._handle._buffer = instanceBuffer;
+
         // let renderData = this._renderData;
         // let vData = renderData.vDatas[0];
         // let iData = renderData.iDatas[0];
 
-        let buffer = this.getBuffer(renderer);
-        let offsetInfo = buffer.request(this.verticesCount, this.indicesCount);
+        // let buffer = this.getBuffer(renderer);
+        // let offsetInfo = buffer.request(this.verticesCount, this.indicesCount);
+        // let offsetInfo = buffer.request(this.verticesCount, 0);
 
         // buffer data may be realloc, need get reference after request.
 
         // fill vertices
-        let vertexOffset = offsetInfo.byteOffset >> 2,
-            vbuf = buffer._vData;
+        // let vertexOffset = offsetInfo.byteOffset >> 2,
+        //     vbuf = buffer._vData;
 
         // let vData = comp.node._worldMatrix.m;
         // if (vData.length + vertexOffset > vbuf.length) {
         //     vbuf.set(vData.subarray(0, vbuf.length - vertexOffset), vertexOffset);
         // } else {
-            vbuf.set(this._matArray, vertexOffset);
+            // vbuf.set(this._matArray, vertexOffset);
         // }
 
         // fill indices
