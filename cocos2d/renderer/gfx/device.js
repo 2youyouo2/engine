@@ -451,7 +451,14 @@ let quadIndices = new Uint16Array([0,1,2,1,2,3]);
 let quadVB;
 let quadIB;
 
-function bindInstance (gl, posLocation) {
+let posLocation = -1
+
+function bindInstance (gl, program) {
+
+  if (posLocation === -1) {
+    posLocation = program._attributes.findIndex(a => a.name === 'a_position')
+  }
+  
   if (!quadVB) {
     quadVB = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, quadVB);
@@ -1413,7 +1420,7 @@ export default class Device {
         //   next.indexBuffer._format,
         //   base * next.indexBuffer._bytesPerIndex
         // );
-        bindInstance(gl, next.program._attributes.findIndex(a => a.name === 'a_position'))
+        bindInstance(gl, next.program)
         // gl.drawElementsInstanced(this._next.primitiveType, 6, next.indexBuffer._format, 0, count/6)
         this.ext('ANGLE_instanced_arrays').drawElementsInstancedANGLE(this._next.primitiveType, 6, next.indexBuffer._format, 0, count/6)
         // gl.drawElements(this._next.primitiveType, 6, next.indexBuffer._format, 0)

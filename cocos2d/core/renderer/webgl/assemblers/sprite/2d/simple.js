@@ -82,11 +82,16 @@ export default class SimpleSpriteAssembler extends Assembler2D {
             t = ch + trimTop * scaleY - appy;
         }
 
-        let local = this._local;
-        local[0] = l;
-        local[1] = b;
-        local[2] = r-l;
-        local[3] = t-b;
+        // let local = this._local;
+        // local[0] = l;
+        // local[1] = b;
+        // local[2] = r-l;
+        // local[3] = t-b;
+        let m = this._matArray;
+        m[4] = l;
+        m[5] = b;
+        m[6] = r-l;
+        m[7] = t-b;
         this.updateWorldVerts(sprite);
     }
 }

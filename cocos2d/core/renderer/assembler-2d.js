@@ -4,6 +4,7 @@ import RenderData from './webgl/render-data';
 
 var vfmtMa4 = new cc.gfx.VertexFormat([
     { name: 'a_uv_matrix', type: cc.gfx.ATTR_TYPE_FLOAT32, num: 4 },
+    { name: 'a_pos_local', type: cc.gfx.ATTR_TYPE_FLOAT32, num: 4 },
     { name: 'a_pos_rotate_scale', type: cc.gfx.ATTR_TYPE_FLOAT32, num: 4 },
     { name: 'a_pos_translate', type: cc.gfx.ATTR_TYPE_FLOAT32, num: 2 },
 ]);
@@ -15,7 +16,7 @@ export default class Assembler2D extends Assembler {
         this._renderData = new RenderData();
         this._renderData.init(this);
 
-        this._matArray = new Float32Array(10);
+        this._matArray = new Float32Array(14);
         
         this.initData();
         this.initLocal();
@@ -50,20 +51,25 @@ export default class Assembler2D extends Assembler {
     }
 
     getBuffer () {
-        return cc.renderer._handle.getBuffer('mesh', this.getVfmt());
+        if (!this._buffer) {
+            this._buffer = cc.renderer._handle.getBuffer('mesh', this.getVfmt());
+        }
+        return this._buffer;
     }
 
     updateWorldVerts (comp) {
-        let local = this._local;
+        // let local = this._local;
 
         let m = comp.node._worldMatrix.m;
         let _m = this._matArray;
-        _m[4] = m[0] * local[2];
-        _m[5] = m[1];
-        _m[6] = m[4];
-        _m[7] = m[5] * local[3];
-        _m[8] = m[12] + local[0] * m[0];
-        _m[9] = m[13] + local[1] * m[5];
+        // this._matArray.set(comp.node._worldMatrix.m, 8)
+        
+        _m[8] = m[0];
+        _m[9] = m[1];
+        _m[10] = m[4];
+        _m[11] = m[5];
+        _m[12] = m[12];
+        _m[13] = m[13];
 
         // let verts = this._renderData.vDatas[0];
 
@@ -129,12 +135,12 @@ export default class Assembler2D extends Assembler {
         let vertexOffset = offsetInfo.byteOffset >> 2,
             vbuf = buffer._vData;
 
-        let vData = comp.node._worldMatrix.m;
-        if (vData.length + vertexOffset > vbuf.length) {
-            vbuf.set(vData.subarray(0, vbuf.length - vertexOffset), vertexOffset);
-        } else {
+        // let vData = comp.node._worldMatrix.m;
+        // if (vData.length + vertexOffset > vbuf.length) {
+        //     vbuf.set(vData.subarray(0, vbuf.length - vertexOffset), vertexOffset);
+        // } else {
             vbuf.set(this._matArray, vertexOffset);
-        }
+        // }
 
         // fill indices
         // let ibuf = buffer._iData,
@@ -166,7 +172,7 @@ export default class Assembler2D extends Assembler {
 }
 
 cc.js.addon(Assembler2D.prototype, {
-    floatsPerVert: 10,
+    floatsPerVert: 14,
 
     verticesCount: 1,
     indicesCount: 6,
