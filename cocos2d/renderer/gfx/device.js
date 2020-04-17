@@ -541,7 +541,8 @@ function _commitVertexBuffers(device, gl, cur, next) {
           el.offset + vbOffset * el.stride
         );
 
-        gl.vertexAttribDivisor(attr.location, 1);
+        // gl.vertexAttribDivisor(attr.location, 1);
+        device.ext('ANGLE_instanced_arrays').vertexAttribDivisorANGLE(attr.location, 1);
 
         maxLocation = Math.max(attr.location, maxLocation);
       }
@@ -638,9 +639,7 @@ export default class Device {
     }
 
     try {
-      gl = canvasEL.getContext('webgl2', opts)
-        || canvasEL.getContext('experimental-webgl2', opts)
-        || canvasEL.getContext('webgl', opts)
+      gl = canvasEL.getContext('webgl', opts)
         || canvasEL.getContext('experimental-webgl', opts)
         || canvasEL.getContext('webkit-3d', opts)
         || canvasEL.getContext('moz-webgl', opts);
@@ -686,6 +685,7 @@ export default class Device {
       'WEBGL_compressed_texture_s3tc',
       'WEBGL_depth_texture',
       'WEBGL_draw_buffers',
+      'ANGLE_instanced_arrays'
     ]);
     this._initCaps();
     this._initStates();
@@ -1414,7 +1414,8 @@ export default class Device {
         //   base * next.indexBuffer._bytesPerIndex
         // );
         bindInstance(gl, next.program._attributes.findIndex(a => a.name === 'a_position'))
-        gl.drawElementsInstanced(this._next.primitiveType, 6, next.indexBuffer._format, 0, count/6)
+        // gl.drawElementsInstanced(this._next.primitiveType, 6, next.indexBuffer._format, 0, count/6)
+        this.ext('ANGLE_instanced_arrays').drawElementsInstancedANGLE(this._next.primitiveType, 6, next.indexBuffer._format, 0, count/6)
         // gl.drawElements(this._next.primitiveType, 6, next.indexBuffer._format, 0)
       } else {
         gl.drawArrays(
