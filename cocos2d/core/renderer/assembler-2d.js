@@ -6,6 +6,10 @@ export default class Assembler2D extends Assembler {
     constructor () {
         super();
 
+        this._containerVerticesOffset = 0;
+        this._containerIndicesOffset = 0;
+        this._batchContainer = null;
+
         this._renderData = new RenderData();
         this._renderData.init(this);
         
@@ -13,7 +17,7 @@ export default class Assembler2D extends Assembler {
         this.initLocal();
     }
 
-    get verticesFloats () {
+    get verticesFloats () {            
         return this.verticesCount * this.floatsPerVert;
     }
 
@@ -26,14 +30,31 @@ export default class Assembler2D extends Assembler {
         this._local.length = 4;
     }
 
+    getFloatVerticesBuffer () {
+        let container = this.getContainer();
+        if (container) {
+            return container._buffer._vData;
+        }
+        return this._renderData.vDatas[0];
+    }
+
+    getUintVerticesBuffer () {
+        let container = this.getContainer();
+        if (container) {
+            return container._buffer._uintVData;
+        }
+        return this._renderData.uintVDatas[0];
+    }
+
     updateColor (comp, color) {
-        let uintVerts = this._renderData.uintVDatas[0];
+        let uintVerts = this.getUintVerticesBuffer();
         if (!uintVerts) return;
         color = color ||comp.node.color._val;
         let floatsPerVert = this.floatsPerVert;
         let colorOffset = this.colorOffset;
+        let containerOffset = this._containerVerticesOffset;
         for (let i = colorOffset, l = uintVerts.length; i < l; i += floatsPerVert) {
-            uintVerts[i] = color;
+            uintVerts[i+containerOffset] = color;
         }
     }
 
@@ -41,9 +62,27 @@ export default class Assembler2D extends Assembler {
         return cc.renderer._handle._meshBuffer;
     }
 
+    getContainer () {
+        return this._batchContainer;
+    }
+
+    updateContainerIndices () {
+        let container = this.getContainer();
+        let ibuf = container._buffer._iData;
+        
+        let iData = this._renderData.iDatas[0];
+
+        let indiceOffset = this._containerIndicesOffset;
+        let vertexId = this._containerVerticesOffset / this.floatsPerVert;
+        for (let i = 0, l = iData.length; i < l; i++) {
+            ibuf[indiceOffset++] = vertexId + iData[i];
+        }
+    }
+
     updateWorldVerts (comp) {
         let local = this._local;
-        let verts = this._renderData.vDatas[0];
+        let verts = this.getFloatVerticesBuffer();
+        let containerOffset = this._containerVerticesOffset;
 
         let matrix = comp.node._worldMatrix;
         let matrixm = matrix.m,
@@ -57,17 +96,17 @@ export default class Assembler2D extends Assembler {
 
         if (justTranslate) {
             // left bottom
-            verts[0] = vl + tx;
-            verts[1] = vb + ty;
+            verts[containerOffset + 0] = vl + tx;
+            verts[containerOffset + 1] = vb + ty;
             // right bottom
-            verts[5] = vr + tx;
-            verts[6] = vb + ty;
+            verts[containerOffset + 5] = vr + tx;
+            verts[containerOffset + 6] = vb + ty;
             // left top
-            verts[10] = vl + tx;
-            verts[11] = vt + ty;
+            verts[containerOffset + 10] = vl + tx;
+            verts[containerOffset + 11] = vt + ty;
             // right top
-            verts[15] = vr + tx;
-            verts[16] = vt + ty;
+            verts[containerOffset + 15] = vr + tx;
+            verts[containerOffset + 16] = vt + ty;
         } else {
             let al = a * vl, ar = a * vr,
             bl = b * vl, br = b * vr,
@@ -75,23 +114,27 @@ export default class Assembler2D extends Assembler {
             db = d * vb, dt = d * vt;
 
             // left bottom
-            verts[0] = al + cb + tx;
-            verts[1] = bl + db + ty;
+            verts[containerOffset + 0] = al + cb + tx;
+            verts[containerOffset + 1] = bl + db + ty;
             // right bottom
-            verts[5] = ar + cb + tx;
-            verts[6] = br + db + ty;
+            verts[containerOffset + 5] = ar + cb + tx;
+            verts[containerOffset + 6] = br + db + ty;
             // left top
-            verts[10] = al + ct + tx;
-            verts[11] = bl + dt + ty;
+            verts[containerOffset + 10] = al + ct + tx;
+            verts[containerOffset + 11] = bl + dt + ty;
             // right top
-            verts[15] = ar + ct + tx;
-            verts[16] = br + dt + ty;
+            verts[containerOffset + 15] = ar + ct + tx;
+            verts[containerOffset + 16] = br + dt + ty;
         }
     }
 
     fillBuffers (comp, renderer) {
         if (renderer.worldMatDirty) {
             this.updateWorldVerts(comp);
+        }
+        
+        if (this.getContainer()) {
+            return;
         }
 
         let renderData = this._renderData;

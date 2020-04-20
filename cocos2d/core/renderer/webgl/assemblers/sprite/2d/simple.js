@@ -40,12 +40,13 @@ export default class SimpleSpriteAssembler extends Assembler2D {
         let uv = sprite._spriteFrame.uv;
         let uvOffset = this.uvOffset;
         let floatsPerVert = this.floatsPerVert;
-        let verts = this._renderData.vDatas[0];
+        let verts = this.getFloatVerticesBuffer();
+        let containerOffset = this._containerVerticesOffset;
         for (let i = 0; i < 4; i++) {
             let srcOffset = i * 2;
             let dstOffset = floatsPerVert * i + uvOffset;
-            verts[dstOffset] = uv[srcOffset];
-            verts[dstOffset + 1] = uv[srcOffset + 1];
+            verts[containerOffset + dstOffset] = uv[srcOffset];
+            verts[containerOffset + dstOffset + 1] = uv[srcOffset + 1];
         }
     }
 

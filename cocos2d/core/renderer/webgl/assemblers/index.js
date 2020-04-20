@@ -30,3 +30,4 @@ require('./mask-assembler');
 require('./graphics');
 require('./label');
 require('./motion-streak');
+require('./batch-container');
