@@ -1034,7 +1034,7 @@ export function WebGL2CmdFuncCreateTexture (device: WebGL2GFXDevice, gpuTexture:
                             gl.compressedTexImage2D(gl.TEXTURE_2D, 0, gpuTexture.glInternelFmt, 2, 2, 0, view);
                         }
                     }
-                    /*
+                    
                     if (gpuTexture.isPowerOf2) {
                         gpuTexture.glWrapS = gl.REPEAT;
                         gpuTexture.glWrapT = gl.REPEAT;
@@ -1042,13 +1042,22 @@ export function WebGL2CmdFuncCreateTexture (device: WebGL2GFXDevice, gpuTexture:
                         gpuTexture.glWrapS = gl.CLAMP_TO_EDGE;
                         gpuTexture.glWrapT = gl.CLAMP_TO_EDGE;
                     }
-                    gpuTexture.glMinFilter = gl.LINEAR;
+                    if (gpuTexture.mipLevel > 1) {
+                        gpuTexture.glMinFilter = gl.LINEAR_MIPMAP_LINEAR;
+                    }
+                    else {
+                        gpuTexture.glMinFilter = gl.LINEAR;
+                    }
                     gpuTexture.glMagFilter = gl.LINEAR;
                     gl.texParameteri(gpuTexture.glTarget, gl.TEXTURE_WRAP_S, gpuTexture.glWrapS);
                     gl.texParameteri(gpuTexture.glTarget, gl.TEXTURE_WRAP_T, gpuTexture.glWrapT);
                     gl.texParameteri(gpuTexture.glTarget, gl.TEXTURE_MIN_FILTER, gpuTexture.glMinFilter);
                     gl.texParameteri(gpuTexture.glTarget, gl.TEXTURE_MAG_FILTER, gpuTexture.glMagFilter);
-                    */
+
+                    if (device.EXT_texture_filter_anisotropic) {
+                        gl.texParameterf(gpuTexture.glTarget, device.EXT_texture_filter_anisotropic.TEXTURE_MAX_ANISOTROPY_EXT, 4);
+                    }
+                    
                 }
                 else {
                     gl.deleteTexture(glTexture);
@@ -1119,7 +1128,6 @@ export function WebGL2CmdFuncCreateTexture (device: WebGL2GFXDevice, gpuTexture:
                     }
                 }
 
-                /*
                 if (gpuTexture.isPowerOf2) {
                     gpuTexture.glWrapS = gl.REPEAT;
                     gpuTexture.glWrapT = gl.REPEAT;
@@ -1127,14 +1135,21 @@ export function WebGL2CmdFuncCreateTexture (device: WebGL2GFXDevice, gpuTexture:
                     gpuTexture.glWrapS = gl.CLAMP_TO_EDGE;
                     gpuTexture.glWrapT = gl.CLAMP_TO_EDGE;
                 }
-                gpuTexture.glMinFilter = gl.LINEAR;
+                if (gpuTexture.mipLevel > 1) {
+                    gpuTexture.glMinFilter = gl.LINEAR_MIPMAP_LINEAR;
+                }
+                else {
+                    gpuTexture.glMinFilter = gl.LINEAR;
+                }
                 gpuTexture.glMagFilter = gl.LINEAR;
-
                 gl.texParameteri(gpuTexture.glTarget, gl.TEXTURE_WRAP_S, gpuTexture.glWrapS);
                 gl.texParameteri(gpuTexture.glTarget, gl.TEXTURE_WRAP_T, gpuTexture.glWrapT);
                 gl.texParameteri(gpuTexture.glTarget, gl.TEXTURE_MIN_FILTER, gpuTexture.glMinFilter);
                 gl.texParameteri(gpuTexture.glTarget, gl.TEXTURE_MAG_FILTER, gpuTexture.glMagFilter);
-                */
+
+                if (device.EXT_texture_filter_anisotropic) {
+                    gl.texParameterf(gpuTexture.glTarget, device.EXT_texture_filter_anisotropic.TEXTURE_MAX_ANISOTROPY_EXT, 4);
+                }
             }
             break;
         }
@@ -2279,8 +2294,8 @@ export function WebGL2CmdFuncBindStates (
 
                                     const gpuSampler = gpuBinding.gpuSampler;
                                     if (cache.glSamplerUnits[texUnit] !== gpuSampler.glSampler) {
-                                        gl.bindSampler(texUnit, gpuSampler.glSampler);
-                                        cache.glSamplerUnits[texUnit] = gpuSampler.glSampler;
+                                        // gl.bindSampler(texUnit, gpuSampler.glSampler);
+                                        // cache.glSamplerUnits[texUnit] = gpuSampler.glSampler;
                                     }
                                 }
                             }
