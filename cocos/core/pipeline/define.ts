@@ -237,8 +237,8 @@ localBindingsDesc.set(UBOLocalBatched.BLOCK.name, {
  * 前向灯光 UBO。
  */
 export class UBOForwardLight {
-    public static MAX_SPHERE_LIGHTS = 2;
-    public static MAX_SPOT_LIGHTS = 2;
+    public static MAX_SPHERE_LIGHTS = 4;
+    public static MAX_SPOT_LIGHTS = 4;
 
     public static SPHERE_LIGHT_POS_OFFSET: number = 0;
     public static SPHERE_LIGHT_SIZE_RANGE_OFFSET: number = UBOForwardLight.SPHERE_LIGHT_POS_OFFSET + UBOForwardLight.MAX_SPHERE_LIGHTS * 4;
