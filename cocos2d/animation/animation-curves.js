@@ -69,7 +69,7 @@ var AnimCurve = cc.Class({
     // @param {number} ratio - The normalized time specified as a number between 0.0 and 1.0 inclusive.
     // @param {AnimationState} state
     //
-    sample: function (time, ratio, state) {},
+    sample: function (time, ratio, state) { },
 
     onTimeChangedManually: undefined
 });
@@ -104,6 +104,90 @@ function quickFindIndex (ratios, ratio) {
 
     return ~(floorIndex + 1);
 }
+
+var CachedAnimCurve = cc.Class({
+    name: 'cc.CachedAnimCurve',
+    extends: AnimCurve,
+
+    properties: {
+        targetInfos: [],
+        clip: null,
+
+        testIndex: 0,
+    },
+
+    sample (time, ratio, state) {
+        let cached = this.clip.cached;
+        let ratios = cached.ratios;
+        // let frameCount = ratios.length;
+
+        // let index = quickFindIndex(ratios, ratio);
+
+        // let fromIndex = index, toIndex = index;
+        // if (index < 0) {
+        //     index = ~index;
+
+        //     if (index <= 0) {
+        //         fromIndex = toIndex = 0;
+        //     }
+        //     else if (index >= frameCount) {
+        //         fromIndex = toIndex = frameCount - 1;
+        //     }
+        //     else {
+        //         fromIndex = index - 1;
+        //         toIndex = index;
+
+        //         // var fromVal = values[index - 1];
+
+        //         // if (!this._lerp) {
+        //         //     value = fromVal;
+        //         // }
+        //         // else {
+        //         //     var fromRatio = ratios[index - 1];
+        //         //     var toRatio = ratios[index];
+        //         //     var type = this.types[index - 1];
+        //         //     var ratioBetweenFrames = (ratio - fromRatio) / (toRatio - fromRatio);
+
+        //         //     if (type) {
+        //         //         ratioBetweenFrames = computeRatioByType(ratioBetweenFrames, type);
+        //         //     }
+
+        //         //     // calculate value
+        //         //     var toVal = values[index];
+
+        //         //     value = this._lerp(fromVal, toVal, ratioBetweenFrames);
+        //         // }
+        //     }
+        // }
+
+        // let fromRatio = ratios[fromIndex];
+        // let toRatio = ratios[toIndex];
+        // let ratioBetweenFrames = (ratio - fromRatio) / (toRatio - fromRatio);
+
+        let fromIndex = this.testIndex++ % ratios.length;
+
+        let targetInfos = this.targetInfos;
+        let cachedDatas = cached.datas;
+        for (let path in targetInfos) {
+            let targetInfo = targetInfos[path];
+
+            let targetCache = cachedDatas[path];
+            if (!targetCache) {
+                continue;
+            }
+
+            let target = targetInfo.target;
+            let props = targetInfo.props;
+
+            for (let j = 0; j < props.length; j++) {
+                let prop = props[j];
+                let values = targetCache[prop];
+                let value = values[fromIndex];
+                target[prop] = value;
+            }
+        }
+    },
+});
 
 //
 //
@@ -376,7 +460,7 @@ var EventAnimCurve = cc.Class({
                             lastIndex = length;
                         }
 
-                        lastIterations ++;
+                        lastIterations++;
                     }
                     else if (direction === 1 && lastIndex === length - 1 && currentIndex < length - 1) {
                         if ((wrapMode & WrapModeMask.PingPong) === WrapModeMask.PingPong) {
@@ -386,7 +470,7 @@ var EventAnimCurve = cc.Class({
                             lastIndex = -1;
                         }
 
-                        lastIterations ++;
+                        lastIterations++;
                     }
 
                     if (lastIndex === currentIndex) break;
@@ -407,14 +491,14 @@ var EventAnimCurve = cc.Class({
 
         var eventInfo = this.events[index];
         var events = eventInfo.events;
-        
-        if ( !this.target.isValid ) { 
-            return; 
+
+        if (!this.target.isValid) {
+            return;
         }
-        
+
         var components = this.target._components;
 
-        for (var i = 0;  i < events.length; i++) {
+        for (var i = 0; i < events.length; i++) {
             var event = events[i];
             var funcName = event.func;
 
@@ -457,6 +541,7 @@ if (CC_TEST) {
 module.exports = {
     AnimCurve: AnimCurve,
     DynamicAnimCurve: DynamicAnimCurve,
+    CachedAnimCurve: CachedAnimCurve,
     EventAnimCurve: EventAnimCurve,
     EventInfo: EventInfo,
     computeRatioByType: computeRatioByType,

@@ -146,6 +146,8 @@ let Animation = cc.Class({
             type: AnimationClip,
         },
 
+        cacheAnimationClip: false,
+
         /**
          * !#en Animation will play the default clip when start game.
          * !#zh 在勾选自动播放或调用 play() 时默认播放的动画剪辑。
