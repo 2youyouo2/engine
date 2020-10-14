@@ -24,7 +24,7 @@
  ****************************************************************************/
 
 const WrapMode = require('./types').WrapMode;
-const { DynamicAnimCurve, quickFindIndex } = require('./animation-curves');
+const { DynamicAnimCurve, quickFindIndex, CachedAnimCurve } = require('./animation-curves');
 const sampleMotionPaths = require('./motion-path-helper').sampleMotionPaths;
 const binarySearch = require('../core/utils/binary-search').binarySearchEpsilon;
 
@@ -37,6 +37,10 @@ const binarySearch = require('../core/utils/binary-search').binarySearchEpsilon;
 var AnimationClip = cc.Class({
     name: 'cc.AnimationClip',
     extends: cc.Asset,
+
+    ctor () {
+        this.cached = null;
+    },
 
     properties: {
         _duration: {
@@ -205,7 +209,7 @@ var AnimationClip = cc.Class({
             }
             curve.types.push(DynamicAnimCurve.Linear);
         }
-        
+
         if (isMotionPathProp) {
             sampleMotionPaths(motionPaths, curve, this.duration, this.sample, target);
         }
@@ -216,12 +220,12 @@ var AnimationClip = cc.Class({
         let canOptimize = true;
         let EPSILON = 1e-6;
         for (let i = 1, l = ratios.length; i < l; i++) {
-            currRatioDif = ratios[i] - ratios[i-1];
+            currRatioDif = ratios[i] - ratios[i - 1];
             if (i === 1) {
                 lastRatioDif = currRatioDif;
             }
             else if (Math.abs(currRatioDif - lastRatioDif) > EPSILON) {
-                canOptimize = false;                
+                canOptimize = false;
                 break;
             }
         }
@@ -283,7 +287,7 @@ var AnimationClip = cc.Class({
         }
     },
 
-    createCurves (state, root) {
+    createDynamicCurves (state, root) {
         let curveData = this.curveData;
         let childrenCurveDatas = curveData.paths;
         let curves = [];
@@ -302,6 +306,127 @@ var AnimationClip = cc.Class({
         }
 
         return curves;
+    },
+
+
+    cacheTargetCurves (target, curveData, curve, path, cached) {
+        let propsData = curveData.props;
+        let compsData = curveData.comps;
+
+        if (!propsData && !compsData) {
+            return;
+        }
+
+        let cachedProps = [];
+        let cachedComps = {};
+        curve.targetInfos.push({
+            target,
+            path,
+            props: cachedProps,
+            comps: cachedComps
+        });
+
+
+        if (propsData) {
+            let cachedRatios = cached.ratios;
+            let cachedDatas = cached.datas;
+            if (!cachedDatas[path]) {
+                cachedDatas[path] = {};
+            }
+
+            for (let propPath in propsData) {
+                if (!cachedDatas[path][propPath]) {
+                    let tempTarget = {};
+                    let curve = this.createPropCurve(tempTarget, propPath, propsData[propPath]);
+                    let values = [];
+                    for (let i = 0; i < cachedRatios.length; i++) {
+                        curve.sample(0, cachedRatios[i]);
+                        values.push(tempTarget[propPath]);
+                    }
+
+                    cachedDatas[path][propPath] = values;
+                }
+
+                cachedProps.push(propPath);
+            }
+        }
+
+        // if (compsData) {
+        //     for (let compName in compsData) {
+        //         let comp = target.getComponent(compName);
+
+        //         if (!comp) {
+        //             continue;
+        //         }
+
+        //         let cachedProps = [];
+        //         cachedComps[compName] = {
+        //             target: comp,
+        //         }
+
+        //         let compData = compsData[compName];
+        //         for (let propPath in compData) {
+        //             // let data = compData[propPath];
+        //             // let curve = this.createPropCurve(comp, propPath, data);
+        //             // curves.push(curve);
+
+        //             cachedProps.push(propPath);
+        //         }
+        //     }
+        // }
+    },
+
+    createCachedCurves (state, root) {
+        let curveData = this.curveData;
+        let childrenCurveDatas = curveData.paths;
+
+        let curve = new CachedAnimCurve;
+        curve.clip = this;
+        curve.targetInfos = [];
+
+        let curves = [curve];
+
+        let cached = this.cached;
+        if (!cached) {
+            cached = this.cached = {
+                datas: {}
+            };
+            let ratios = cached.ratios = [];
+            let step = 1 / this.sample;
+            let time = 0;
+            let duration = this.duration;
+            while (time < duration) {
+                ratios.push(time / duration);
+                time += step;
+            }
+            if (ratios[ratios.length - 1] !== 1) {
+                ratios.push(1);
+            }
+        }
+
+        this.cacheTargetCurves(root, curveData, curve, '', cached);
+
+        for (let namePath in childrenCurveDatas) {
+            let target = cc.find(namePath, root);
+
+            if (!target) {
+                continue;
+            }
+
+            let childCurveDatas = childrenCurveDatas[namePath];
+            this.cacheTargetCurves(target, childCurveDatas, curve, namePath, cached);
+        }
+
+        return curves;
+    },
+
+    createCurves (state, root, cache) {
+        if (cache) {
+            return this.createCachedCurves(state, root);
+        }
+        else {
+            return this.createDynamicCurves(state, root);
+        }
     }
 });
 

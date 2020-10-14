@@ -47,7 +47,7 @@ p.playState = function (state, startTime) {
     }
 
     if (!state.curveLoaded) {
-        initClipData(this.target, state);
+        initClipData(this.target, state, this.animation.cacheAnimationClip);
     }
 
     state.animator = this;
@@ -181,7 +181,7 @@ p.onResume = function () {
 };
 
 p._reloadClip = function (state) {
-    initClipData(this.target, state);
+    initClipData(this.target, state, this.animation.cacheAnimationClip);
 };
 
 // 这个方法应该是 SampledAnimCurve 才能用
@@ -209,7 +209,7 @@ if (CC_TEST) {
 }
 
 
-function initClipData (root, state) {
+function initClipData (root, state, cacheAnimationClip) {
     let clip = state.clip;
 
     state.duration = clip.duration;
@@ -224,7 +224,7 @@ function initClipData (root, state) {
         state.repeatCount = 1;
     }
 
-    let curves = state.curves = clip.createCurves(state, root);
+    let curves = state.curves = clip.createCurves(state, root, cacheAnimationClip);
 
     // events curve
 
