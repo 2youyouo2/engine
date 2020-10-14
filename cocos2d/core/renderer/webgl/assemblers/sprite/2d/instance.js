@@ -24,17 +24,66 @@
  ****************************************************************************/
 
 import Assembler2D from '../../../../assembler-2d';
-import { getBuffer, getVBuffer, vfmtInstance } from '../../../instance-buffer';
+import { getBuffer, getVBuffer, vfmtInstance, vfmtDataBuffer, getFloat32DataBuffer, initFreeIndexBuffer, getDataIndex, releaseDataIndex, setInstanceDataDirty, getInstanceTexture, getResizeDirty} from '../../../instance-buffer';
 
 export default class InstanceSpriteAssembler extends Assembler2D {
     verticesCount = 1;
-    floatsPerVert = vfmtInstance._bytes / 4
+    dataPerVert = vfmtDataBuffer._bytes / 4;
+    floatsPerVert = vfmtInstance._bytes / 4;
+
+    instanceDataIndex = -1;
+    dataBufferStart = 0;
 
     constructor () {
         super();
+        this.isInstance = true;
 
         getBuffer();
-        this._instanceArray = new Float32Array(this.floatsPerVert);
+
+        this._dataBufferArray = new Float32Array(this.dataPerVert);
+    }
+
+    initBlockInfo () {
+        if (this.instanceDataIndex === -1) {
+            initFreeIndexBuffer();
+
+            this.instanceDataIndex = getDataIndex();
+            this.dataBufferStart = this.instanceDataIndex * this.dataPerVert;
+
+            this._updateMaterial();
+        }
+    }
+
+    releaseBlockInfo () {
+        if (this.instanceDataIndex !== -1) {
+            releaseDataIndex(this.instanceDataIndex);
+            this._dataBufferArray.fill(0);
+            let buffer = this.get32fDataBuffer();
+            buffer.set(this._dataBufferArray, this.instanceDataIndex * this.dataPerVert);
+            this.instanceDataIndex = -1;
+            setInstanceDataDirty(true);
+        }
+    }
+
+    onEnable () {
+        super.onEnable();
+        this.initBlockInfo();
+    }
+
+    onDisable () {
+        super.onDisable();
+        this.releaseBlockInfo();
+    }
+
+    _updateMaterial () {
+        let materials = this._renderComp.getMaterials();
+        for (let i = 0; i < materials.length; i++) {
+            let material = materials[i];
+            let texture = this.getDataTexture();
+            material.setProperty('instanceDataTexture', texture);
+            material.setProperty('instanceDataTextureSize', new Float32Array([texture.width, texture.height]));
+            material.define('CC_INSTANCE_TEXTURE_FLOAT32', !!cc.sys.glExtension('OES_texture_float'));
+        }
     }
 
     updateColor () {
@@ -53,20 +102,32 @@ export default class InstanceSpriteAssembler extends Assembler2D {
         return getVBuffer();
     }
 
+    get32fDataBuffer () {
+        return getFloat32DataBuffer();
+    }
+
+    getDataTexture () {
+        return getInstanceTexture();
+    }
+
     fillBuffers (comp, renderer) {
         if (renderer.worldMatDirty) {
-            this.updateWorldVerts(comp);
+            this.onlyUpdateWorldVerts(comp); 
         }
 
         let instanceBuffer = getBuffer();
-        let buffer = this.getVBuffer();
-        buffer.set(this._instanceArray, instanceBuffer.instanceOffset++ * this.floatsPerVert);
+        let buffer = this.getVBuffer(); 
+        buffer[instanceBuffer.instanceOffset * this.floatsPerVert] = this.instanceDataIndex;
+        instanceBuffer.instanceOffset++;
 
         cc.renderer._handle._buffer = instanceBuffer;
+        if (getResizeDirty()) {
+            this._updateMaterial();
+        }
     }
 
     updateWorldVerts (comp) {
-        let buffer = this._instanceArray;
+        let buffer = this._dataBufferArray;
 
         let m = comp.node._worldMatrix.m;
         buffer[8] = m[0];
@@ -77,19 +138,40 @@ export default class InstanceSpriteAssembler extends Assembler2D {
         buffer[13] = m[13];
     }
 
+    onlyUpdateWorldVerts (comp) {
+        this.updateWorldVerts (comp);
+
+        let buffer = this.get32fDataBuffer();
+        let compBuffer = this._dataBufferArray;
+
+        let m = comp.node._worldMatrix.m;
+
+        buffer[this.dataBufferStart + 8] = compBuffer[8] = m[0];
+        buffer[this.dataBufferStart + 9] = compBuffer[9] = m[1];
+        buffer[this.dataBufferStart + 10] = compBuffer[10] = m[4];
+        buffer[this.dataBufferStart + 11] = compBuffer[11] = m[5];
+        buffer[this.dataBufferStart + 12] = compBuffer[12] = m[12];
+        buffer[this.dataBufferStart + 13] = compBuffer[13] = m[13];
+
+        setInstanceDataDirty(true);
+    }
+
     updateRenderData (sprite) {
         this.packToDynamicAtlas(sprite, sprite._spriteFrame);
 
         if (sprite._vertsDirty) {
             this.updateUVs(sprite);
             this.updateVerts(sprite);
+            let buffer = this.get32fDataBuffer();
+            buffer.set(this._dataBufferArray, this.instanceDataIndex * this.dataPerVert);
+            setInstanceDataDirty(true);
             sprite._vertsDirty = false;
         }
     }
 
     updateUVs (sprite) {
         let uv = sprite._spriteFrame.uv;
-        let buffer = this._instanceArray;
+        let buffer = this._dataBufferArray;
         buffer[0] = uv[0];
         buffer[1] = uv[1];
 
@@ -135,7 +217,7 @@ export default class InstanceSpriteAssembler extends Assembler2D {
             t = ch + trimTop * scaleY - appy;
         }
 
-        let buffer = this._instanceArray;
+        let buffer = this._dataBufferArray;
         buffer[4] = l;
         buffer[5] = b;
         buffer[6] = r;

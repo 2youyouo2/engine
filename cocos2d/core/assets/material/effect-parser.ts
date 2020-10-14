@@ -47,6 +47,10 @@ function parseProperties (effectAsset, passJson) {
             value = enums2default[u.type];
         }
 
+        if (value === undefined) {
+            value = null;
+        }
+
         prop.value = value;
     });
 

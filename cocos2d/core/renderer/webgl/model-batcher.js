@@ -35,6 +35,8 @@ import InputAssembler from '../../../renderer/core/input-assembler';
 import RecyclePool from '../../../renderer/memop/recycle-pool';
 import Model from '../../../renderer/scene/model';
 
+import {commitInstanceData, setInstanceDataDirty, getInstanceDataDirty, setResizeDirty} from './instance-buffer';
+
 let _buffers = {};
 
 const empty_material = new Material();
@@ -201,6 +203,12 @@ ModelBatcher.prototype = {
 
         // flush current rest Model
         this._flush();
+
+        if (getInstanceDataDirty()) {
+            commitInstanceData();
+            setInstanceDataDirty(false);
+            setResizeDirty(false);
+        }
 
         for (let key in _buffers) {
             let buffer = _buffers[key];

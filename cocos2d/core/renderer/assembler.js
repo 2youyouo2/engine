@@ -2,6 +2,8 @@ import { vfmtPosUvColor } from './webgl/vertex-format';
 import assemblerPool from './assembler-pool';
 
 export default class Assembler {
+    isInstance = false;
+
     constructor () {
         this._extendNative && this._extendNative();
     }
@@ -17,6 +19,18 @@ export default class Assembler {
     
     getVfmt () {
         return vfmtPosUvColor;
+    }
+
+    onEnable () {
+    }
+
+    onDisable () {
+    }
+
+    initBlockInfo () {
+    }
+
+    releaseBlockInfo () {
     }
 }
 
