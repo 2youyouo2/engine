@@ -39,8 +39,6 @@ export default class InstanceSpriteAssembler extends Assembler2D {
         this.isInstance = true;
 
         getBuffer();
-
-        this._dataBufferArray = new Float32Array(this.dataPerVert);
     }
 
     initBlockInfo () {
@@ -57,9 +55,6 @@ export default class InstanceSpriteAssembler extends Assembler2D {
     releaseBlockInfo () {
         if (this.instanceDataIndex !== -1) {
             releaseDataIndex(this.instanceDataIndex);
-            this._dataBufferArray.fill(0);
-            let buffer = this.get32fDataBuffer();
-            buffer.set(this._dataBufferArray, this.instanceDataIndex * this.dataPerVert);
             this.instanceDataIndex = -1;
             setInstanceDataDirty(true);
         }
@@ -112,7 +107,7 @@ export default class InstanceSpriteAssembler extends Assembler2D {
 
     fillBuffers (comp, renderer) {
         if (renderer.worldMatDirty) {
-            this.onlyUpdateWorldVerts(comp); 
+            this.updateWorldVerts(comp);
         }
 
         let instanceBuffer = getBuffer();
@@ -127,31 +122,16 @@ export default class InstanceSpriteAssembler extends Assembler2D {
     }
 
     updateWorldVerts (comp) {
-        let buffer = this._dataBufferArray;
-
-        let m = comp.node._worldMatrix.m;
-        buffer[8] = m[0];
-        buffer[9] = m[1];
-        buffer[10] = m[4];
-        buffer[11] = m[5];
-        buffer[12] = m[12];
-        buffer[13] = m[13];
-    }
-
-    onlyUpdateWorldVerts (comp) {
-        this.updateWorldVerts (comp);
-
         let buffer = this.get32fDataBuffer();
-        let compBuffer = this._dataBufferArray;
+        let start = this.dataBufferStart;
 
         let m = comp.node._worldMatrix.m;
-
-        buffer[this.dataBufferStart + 8] = compBuffer[8] = m[0];
-        buffer[this.dataBufferStart + 9] = compBuffer[9] = m[1];
-        buffer[this.dataBufferStart + 10] = compBuffer[10] = m[4];
-        buffer[this.dataBufferStart + 11] = compBuffer[11] = m[5];
-        buffer[this.dataBufferStart + 12] = compBuffer[12] = m[12];
-        buffer[this.dataBufferStart + 13] = compBuffer[13] = m[13];
+        buffer[start + 8] = m[0];
+        buffer[start + 9] = m[1];
+        buffer[start + 10] = m[4];
+        buffer[start + 11] = m[5];
+        buffer[start + 12] = m[12];
+        buffer[start + 13] = m[13];
 
         setInstanceDataDirty(true);
     }
@@ -162,32 +142,25 @@ export default class InstanceSpriteAssembler extends Assembler2D {
         if (sprite._vertsDirty) {
             this.updateUVs(sprite);
             this.updateVerts(sprite);
-            let buffer = this.get32fDataBuffer();
-            buffer.set(this._dataBufferArray, this.instanceDataIndex * this.dataPerVert);
-            setInstanceDataDirty(true);
             sprite._vertsDirty = false;
         }
     }
 
     updateUVs (sprite) {
         let uv = sprite._spriteFrame.uv;
-        let buffer = this._dataBufferArray;
-        buffer[0] = uv[0];
-        buffer[1] = uv[1];
+        let buffer = this.get32fDataBuffer();
+        let start = this.dataBufferStart;
+        buffer[start + 0] = uv[0];
+        buffer[start + 1] = uv[1];
 
-        // if (sprite._spriteFrame.isRotated()) {
-        //     buffer[2] = uv[3];
-        //     buffer[3] = uv[6];
-        // }
-        // else {
-            buffer[2] = uv[6];
-            buffer[3] = uv[7];
-        // }
+        buffer[start + 2] = uv[6];
+        buffer[start + 3] = uv[7];
 
-        buffer[14] = sprite._spriteFrame.isRotated() ? 1 : 0;
+        // rotated flag
+        buffer[start + 14] = sprite._spriteFrame.isRotated() ? 1 : 0;
 
         // texture id
-        buffer[15] = 1;
+        buffer[start + 15] = 1;
     }
 
     updateVerts (sprite) {
@@ -217,11 +190,12 @@ export default class InstanceSpriteAssembler extends Assembler2D {
             t = ch + trimTop * scaleY - appy;
         }
 
-        let buffer = this._dataBufferArray;
-        buffer[4] = l;
-        buffer[5] = b;
-        buffer[6] = r;
-        buffer[7] = t;
+        let buffer = this.get32fDataBuffer();
+        let start = this.dataBufferStart;
+        buffer[start + 4] = l;
+        buffer[start + 5] = b;
+        buffer[start + 6] = r;
+        buffer[start + 7] = t;
         this.updateWorldVerts(sprite);
     }
 }
