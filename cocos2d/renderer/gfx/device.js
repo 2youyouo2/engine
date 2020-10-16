@@ -455,7 +455,8 @@ let posLocation = -1
 function bindInstance (gl, program) {
 
   if (posLocation === -1) {
-    posLocation = program._attributes.findIndex(a => a.name === 'a_position')
+    // posLocation = program._attributes.findIndex(a => a.name === 'a_position')
+    posLocation = program._attributes.findIndex(a => a.name === cc.gfx.ATTR_POSITION)
   }
 
   if (!quadVB) {

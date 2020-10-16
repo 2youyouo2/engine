@@ -14,7 +14,8 @@ let instanceTexture = null;
 let instanceDataTexOptions = null;
 
 let SUPPORT_FLOAT_TEXTURE = false;
-let size = 64;
+let size = 64; //Texture Size, Must be an integer multiple of 4
+let FixedRequestCount = size * size / 4;
 
 let fixLength = 0;
 let freeIndexBuffer = [];
@@ -26,7 +27,7 @@ function checkFloatSupport () {
 export function initFreeIndexBuffer () {
     if (fixLength === 0) {
         checkFloatSupport();
-        freeIndexBuffer.length = fixLength = SUPPORT_FLOAT_TEXTURE ? size * size / 4 : size * size / 16;
+        freeIndexBuffer.length = fixLength = size * size / 4;
         for(let i = 0; i < freeIndexBuffer.length; i++ ) {
             freeIndexBuffer[i] = i;
         }
@@ -38,7 +39,7 @@ export function initFreeIndexBuffer () {
 
 function resizeDataBuffer () {
     size *= 2;
-    freeIndexBuffer.length = (SUPPORT_FLOAT_TEXTURE ? size * size / 4 : size * size / 16) - fixLength;
+    freeIndexBuffer.length = size * size / 4 - fixLength;
     for(let i = 0; i < freeIndexBuffer.length; i++ ) {
         freeIndexBuffer[i] = i + fixLength;
     }
@@ -136,8 +137,6 @@ export function getResizeDirty () {
 export function setResizeDirty (value) {
     resizeDirty = value;
 }
-
-let FixedRequestCount = 2000;
 
 export function getBuffer () {
     if (!instanceBuffer) {
