@@ -275,10 +275,11 @@ export class LightingStage extends RenderStage {
         // Lighting
         let pass: Pass;
         let shader: Shader;
-        const builinDeferred = builtinResMgr.get<Material>('builtin-deferred-material');
+        const builinDeferred = this._deferredMaterial || builtinResMgr.get<Material>('builtin-deferred-material');
         if (builinDeferred) {
             pass = builinDeferred.passes[0];
             shader = ShaderPool.get(pass.getShaderVariant());
+            cmdBuff.bindDescriptorSet(SetIndex.MATERIAL, pass.descriptorSet);
         } else {
             pass = this._deferredMaterial!.passes[LIGHTINGPASS_INDEX];
             shader = ShaderPool.get(this._deferredMaterial!.passes[LIGHTINGPASS_INDEX].getShaderVariant());
