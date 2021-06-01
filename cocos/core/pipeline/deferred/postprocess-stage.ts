@@ -127,10 +127,11 @@ export class PostprocessStage extends RenderStage {
         // Postprocess
         let pass: Pass;
         let shader: Shader;
-        const builtinPostProcess = builtinResMgr.get<Material>('builtin-post-process-material');
+        const builtinPostProcess = this._postprocessMaterial || builtinResMgr.get<Material>('builtin-post-process-material');
         if (builtinPostProcess) {
             pass = builtinPostProcess.passes[0];
             shader = ShaderPool.get(pass.getShaderVariant());
+            cmdBuff.bindDescriptorSet(SetIndex.MATERIAL, pass.descriptorSet);
         } else {
             pass = this._postprocessMaterial!.passes[POSTPROCESSPASS_INDEX];
             shader = ShaderPool.get(this._postprocessMaterial!.passes[POSTPROCESSPASS_INDEX].getShaderVariant());
