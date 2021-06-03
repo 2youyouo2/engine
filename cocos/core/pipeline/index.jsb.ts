@@ -31,6 +31,9 @@ import { setClassName } from '../../core/utils/js';
 import { PipelineSceneData } from './pipeline-scene-data';
 import { legacyCC } from '../../core/global-exports';
 
+import * as pipeline from './define';
+export { pipeline };
+
 nr.getPhaseID = getPhaseID;
 
 export const RenderPipeline = nr.RenderPipeline;
