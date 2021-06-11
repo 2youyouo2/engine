@@ -30,13 +30,6 @@
     },
     "moduleOverrides": [
         {
-            "test": "context.mode === 'BUILD'",
-            "isVirtualModule": false,
-            "overrides": {
-                "cocos/core/data/deserialize-dynamic.ts": "cocos/core/data/deserialize-dynamic-empty.ts"
-            }
-        },
-        {
             "test": "context.platform === 'NATIVE'",
             "isVirtualModule": false,
             "overrides": {
