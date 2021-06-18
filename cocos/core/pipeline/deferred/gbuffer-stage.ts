@@ -84,10 +84,10 @@ export class GbufferStage extends RenderStage {
 
 
     _instanceObjectQueue: any = null;
-    get instanceObjectQueue () {
+    getInstanceObjectQueue () {
         return this._instanceObjectQueue
     }
-    set instanceObjectQueue (v) {
+    setInstanceObjectQueue (v) {
         this._instanceObjectQueue = v;
     }
 
