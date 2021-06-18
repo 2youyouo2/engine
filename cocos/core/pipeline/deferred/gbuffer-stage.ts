@@ -82,6 +82,15 @@ export class GbufferStage extends RenderStage {
     private _instancedQueue: RenderInstancedQueue;
     private _phaseID = getPhaseID('deferred');
 
+
+    _instanceObjectQueue: any = null;
+    get instanceObjectQueue () {
+        return this._instanceObjectQueue
+    }
+    set instanceObjectQueue (v) {
+        this._instanceObjectQueue = v;
+    }
+
     constructor () {
         super();
         this._batchedQueue = new RenderBatchedQueue();
@@ -179,6 +188,9 @@ export class GbufferStage extends RenderStage {
 
         cmdBuff.bindDescriptorSet(SetIndex.GLOBAL, pipeline.descriptorSet);
 
+        if (this._instanceObjectQueue) {
+            this._instanceObjectQueue.recordCommandBuffer(device, renderPass, cmdBuff, camera);
+        }
         for (let i = 0; i < this.renderQueues.length; i++) {
             this._renderQueues[i].recordCommandBuffer(device, renderPass, cmdBuff);
         }
