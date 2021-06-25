@@ -37,6 +37,7 @@ import { Pool } from '../memop';
 import { IRenderObject, UBOShadow } from './define';
 import { ShadowType, Shadows } from '../renderer/scene/shadows';
 import { SphereLight, DirectionalLight, Light } from '../renderer/scene';
+import { EDITOR } from 'internal:constants';
 
 const _tempVec3 = new Vec3();
 const _dir_negate = new Vec3();
@@ -223,6 +224,22 @@ export function sceneCulling (pipeline: RenderPipeline, camera: Camera) {
 
     const models = scene.models;
     const visibility = camera.visibility;
+
+    let sceneAny = scene as any;
+    if (!EDITOR && sceneAny.octree) {
+        sceneAny.octree.update();
+        let entris = sceneAny.octree.intersectsFrustum(camera.frustum);
+        entris.forEach(entry => {
+            let model = entry.data as Model;
+            if (model.enabled) {
+                if (model.node && ((visibility & model.node.layer) === model.node.layer)
+                    || (visibility & model.visFlags)) {
+                    renderObjects.push(getRenderObject(model, camera));
+                }
+            }
+        })
+        return;
+    }
 
     for (let i = 0; i < models.length; i++) {
         const model = models[i];
