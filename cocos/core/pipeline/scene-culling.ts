@@ -228,9 +228,8 @@ export function sceneCulling (pipeline: RenderPipeline, camera: Camera) {
     let sceneAny = scene as any;
     if (!EDITOR && sceneAny.octree) {
         sceneAny.octree.update();
-        let entris = sceneAny.octree.intersectsFrustum(camera.frustum);
-        entris.forEach(entry => {
-            let model = entry.data as Model;
+        let models = sceneAny.octree.intersectsFrustum(camera.frustum);
+        models.forEach((model: Model) => {
             if (model.enabled) {
                 if (model.node && ((visibility & model.node.layer) === model.node.layer)
                     || (visibility & model.visFlags)) {
