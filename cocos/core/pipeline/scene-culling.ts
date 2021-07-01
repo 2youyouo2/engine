@@ -184,7 +184,7 @@ export function lightCollecting (camera: Camera, lightNumber: number) {
         const light = spotLights[i];
         Sphere.set(_sphere, light.position.x, light.position.y, light.position.z, light.range);
         if (intersect.sphereFrustum(_sphere, camera.frustum)
-         && lightNumber > _validLights.length) {
+            && lightNumber > _validLights.length) {
             _validLights.push(light);
         }
     }
@@ -231,12 +231,22 @@ export function sceneCulling (pipeline: RenderPipeline, camera: Camera) {
         let models = sceneAny.octree.intersectsFrustum(camera.frustum);
         models.forEach((model: Model) => {
             if (model.enabled) {
+                // shadow render Object
+                if (shadowObjects != null && model.castShadow && model.worldBounds) {
+                    if (!_castBoundsInited) {
+                        _castWorldBounds.copy(model.worldBounds);
+                        _castBoundsInited = true;
+                    }
+                    AABB.merge(_castWorldBounds, _castWorldBounds, model.worldBounds);
+                    shadowObjects.push(getCastShadowRenderObject(model, camera));
+                }
                 if (model.node && ((visibility & model.node.layer) === model.node.layer)
                     || (visibility & model.visFlags)) {
                     renderObjects.push(getRenderObject(model, camera));
                 }
             }
         })
+        if (_castWorldBounds) { AABB.toBoundingSphere(shadows.sphere, _castWorldBounds); }
         return;
     }
 
